@@ -102,6 +102,22 @@ static void pwmStart(pwm_line_interface_t* self){
 }
 
 
+static void pwmDestroy(pwm_line_interface_t* self)
+{
+    pwm_line_t* pwm_line = container_of(self, pwm_line_t, interface);
+
+    ledc_stop(LEDC_MODE, pwm_line->channel_number, 0);
+
+    ledc_channel_config_t clear = {
+        .gpio_num = -1,
+        .channel = pwm_line->channel_number,
+        .speed_mode = LEDC_MODE,
+        .timer_sel = LEDC_TIMER
+    };
+
+    ledc_channel_config(&clear);
+}
+
 
 
 /* Warning:
@@ -154,9 +170,13 @@ int pwmCreate(pwm_line_t* self,pwm_config_t*  config){
     self->duty=duty_ticks;
     self->interface.pwmStart=pwmStart;
     self->interface.pwmStop=pwmStop;
+    self->interface.pwmDestroy=pwmDestroy;
 
     //ESP_LOGI(TAG,"returning from pwm_line");
 
     return 0;
     
 }
+
+
+

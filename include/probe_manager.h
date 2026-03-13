@@ -32,6 +32,8 @@ typedef struct prober_config{
 typedef struct prober_interface{
     int (*start)(struct prober_interface* self);
     int (*stop)(struct prober_interface* self);
+    static void destroy(struct prober_interface* self)
+
     uint32_t (*getTimePeriod)();
 }prober_interface_t;
 

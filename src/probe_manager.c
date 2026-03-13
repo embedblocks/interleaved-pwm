@@ -42,7 +42,7 @@ static int start(prober_interface_t* self){
     uint8_t total_lines=prb->total_lines;
 
     for(uint8_t i=0;i<total_lines;i++){
-        lines[i].interface.pwmStart(&lines->interface);
+        lines[i].interface.pwmStart(&lines[i].interface);
     }
 
     return 0;
@@ -57,7 +57,7 @@ static int stop(prober_interface_t* self){
     uint8_t total_lines=prb->total_lines;
 
     for(uint8_t i=0;i<total_lines;i++){
-        lines[i].interface.pwmStop(&lines->interface);
+        lines[i].interface.pwmStop(&lines[i].interface);
     }
 
     return 0;
@@ -98,6 +98,24 @@ static int pulseWidthCheck(uint32_t* pulse_widths,uint8_t total_gpio,uint32_t de
 
     if(total_time>time_period)
         return ERR_PROBE_MANAGER_WRONG_PARAMETERS;
+    return 0;
+}
+
+
+static int destroy(prober_interface_t* self)
+{
+    prober_t* prb = container_of(self, prober_t, interface);
+
+    pwm_line_t* lines = prb->lines;
+
+    for(uint8_t i=0;i<prb->total_lines;i++)
+    {
+        lines[i].interface.pwmDestroy(&lines[i].interface);
+    }
+
+    free(lines);
+    prb->lines = NULL;
+
     return 0;
 }
 
@@ -151,9 +169,13 @@ int proberCreate(prober_t* self,prober_config_t* config){
 
     self->interface.start=start;
     self->interface.stop=stop;
+    self->interface.destroy=destroy;
     self->time_period=config->time_period;
 
     ESP_LOGI(TAG,"bye bye");       
     return 0;
 
 }
+
+
+
