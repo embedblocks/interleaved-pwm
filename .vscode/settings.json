@@ -1,7 +1,0 @@
-{
-  "C_Cpp.intelliSenseEngine": "default",
-  "idf.pythonInstallPath": "e:\\ESPIDF\\tools\\tools\\idf-python\\3.11.2\\python.exe",
-  "files.associations": {
-    "pwm_line.h": "c"
-  }
-}
