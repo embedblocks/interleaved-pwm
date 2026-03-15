@@ -123,8 +123,12 @@ static int destroy(interleaved_pwm_interface_t* self)
 
 int interleavedPWMCreate(interleaved_pwm_t* self,interleaved_pwm_config_t* config){
 
-    if(self==NULL || config==NULL)
-        return ERR_PROBE_MANAGER_INVALID_MEM;
+    if( self == NULL || 
+        config == NULL ||
+        config->gpio_no == NULL || 
+        config->pulse_widths == NULL || 
+        config->time_period == 0)       //Becaue freq becomes div by 0 err
+    return ERR_PROBE_MANAGER_INVALID_MEM;
 
     uint8_t total_gpio=config->total_gpio;
     uint32_t time_period=config->time_period;        //Time period in microseconds
