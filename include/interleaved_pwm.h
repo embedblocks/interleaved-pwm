@@ -29,7 +29,7 @@ typedef struct{
 
 
 
-typedef struct {
+typedef struct interleaved_pwm_interface{
     int (*start)(struct interleaved_pwm_interface* self);
     int (*stop)(struct interleaved_pwm_interface* self);
     int (*destroy)(struct interleaved_pwm_interface* self);
@@ -48,5 +48,5 @@ typedef struct {
 }interleaved_pwm_t;   
 
 
-int proberCreate(interleaved_pwm_t* self,interleaved_pwm_config_t* config);
+int interleavedPWMCreate(interleaved_pwm_t* self,interleaved_pwm_config_t* config);
 #endif

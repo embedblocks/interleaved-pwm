@@ -7,7 +7,7 @@ multiple gpio in esp32, so all those gpio will have same pwm signal.
 #include "esp_log.h"
 #include "esp_err.h"
 #include "pwm_line.h"
-#include "multi_pwm.h"
+#include "interleaved_pwm.h"
 
 
 //static const uint8_t duty_one=100;
@@ -108,6 +108,8 @@ static int destroy(interleaved_pwm_interface_t* self)
 
     pwm_line_t* lines = prb->lines;
 
+    ESP_LOGI(TAG,"destroying prober, total lines %d",prb->total_lines);
+
     for(uint8_t i=0;i<prb->total_lines;i++)
     {
         lines[i].interface.pwmDestroy(&lines[i].interface);
@@ -119,7 +121,7 @@ static int destroy(interleaved_pwm_interface_t* self)
     return 0;
 }
 
-int proberCreate(interleaved_pwm_t* self,interleaved_pwm_config_t* config){
+int interleavedPWMCreate(interleaved_pwm_t* self,interleaved_pwm_config_t* config){
 
     if(self==NULL || config==NULL)
         return ERR_PROBE_MANAGER_INVALID_MEM;
@@ -165,6 +167,7 @@ int proberCreate(interleaved_pwm_t* self,interleaved_pwm_config_t* config){
         line_config.time_period=time_period;
         ESP_ERROR_CHECK(pwmCreate(&pwm_line[i],&line_config));
         current_phase+=phase;
+        ESP_LOGI(TAG,"creating");       
     }
 
     self->interface.start=start;
