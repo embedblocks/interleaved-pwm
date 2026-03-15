@@ -108,14 +108,8 @@ static void pwmDestroy(pwm_line_interface_t* self)
 
     ledc_stop(LEDC_MODE, pwm_line->channel_number, 0);
 
-    ledc_channel_config_t clear = {
-        .gpio_num = -1,
-        .channel = pwm_line->channel_number,
-        .speed_mode = LEDC_MODE,
-        .timer_sel = LEDC_TIMER
-    };
-
-    ledc_channel_config(&clear);
+    gpio_reset_pin(pwm_line->gpio_number);
+    
 }
 
 
