@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 
 # Include the components directory of the main application:
 #
-set(EXTRA_COMPONENT_DIRS "../components"  "$ENV{IDF_PATH}/tools/unit-test-app/components")
+set(EXTRA_COMPONENT_DIRS "../"  "$ENV{IDF_PATH}/tools/unit-test-app/components")
 
 # Set the components to include the tests for.
 # This can be overriden from CMake cache:
@@ -11,8 +11,8 @@ set(EXTRA_COMPONENT_DIRS "../components"  "$ENV{IDF_PATH}/tools/unit-test-app/co
 # - when using idf.py: idf.py -T xxxxx build
 #
 #
-set(TEST_COMPONENTS "pwm-line")
-set(CONFIG_UNIT_TESTING 0)
+set(TEST_COMPONENTS "interleaved-pwm")
+#set(CONFIG_UNIT_TESTING 0)
  
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(unit_test_test)
