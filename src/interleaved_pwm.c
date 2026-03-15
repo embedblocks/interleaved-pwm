@@ -54,6 +54,8 @@ static int stop(interleaved_pwm_interface_t* self){
     interleaved_pwm_t* prb=container_of(self,interleaved_pwm_t,interface);
 
     pwm_line_t* lines=(pwm_line_t*) prb->lines;
+    if(lines==NULL)
+        return ESP_FAIL;
     uint8_t total_lines=prb->total_lines;
 
     for(uint8_t i=0;i<total_lines;i++){
@@ -89,15 +91,22 @@ static int phaseCalculate(uint8_t total_gpio){
     return 360/total_gpio;
 }
 
-static int pulseWidthCheck(uint32_t* pulse_widths,uint8_t total_gpio,uint32_t dead_time,uint32_t time_period){
-
-    uint16_t total_time=0;
-
-    for(uint8_t i=0;i<total_gpio;i++)
-        total_time+=pulse_widths[i]+dead_time;
-
-    if(total_time>time_period)
+static int pulseWidthCheck(uint32_t* pulse_widths,
+                           uint8_t total_gpio,
+                           uint32_t dead_time,
+                           uint32_t time_period)
+{
+    if(total_gpio == 0)
         return ERR_PROBE_MANAGER_WRONG_PARAMETERS;
+
+    uint32_t slot = time_period / total_gpio;
+
+    for(uint8_t i = 0; i < total_gpio; i++)
+    {
+        if(pulse_widths[i] + dead_time > slot)
+            return ERR_PROBE_MANAGER_WRONG_PARAMETERS;
+    }
+
     return 0;
 }
 
@@ -121,68 +130,70 @@ static int destroy(interleaved_pwm_interface_t* self)
     return 0;
 }
 
-int interleavedPWMCreate(interleaved_pwm_t* self,interleaved_pwm_config_t* config){
-
-    if( self == NULL || 
-        config == NULL ||
-        config->gpio_no == NULL || 
-        config->pulse_widths == NULL || 
-        config->time_period == 0)       //Becaue freq becomes div by 0 err
-    return ERR_PROBE_MANAGER_INVALID_MEM;
-
-    uint8_t total_gpio=config->total_gpio;
-    uint32_t time_period=config->time_period;        //Time period in microseconds
-    int frequency=1000000/time_period;
-    uint32_t* pulse_widths=config->pulse_widths;
-    uint32_t dead_time=config->dead_time;
-    uint8_t* gpio_no=config->gpio_no;
-
-    int ret=pulseWidthCheck(pulse_widths,total_gpio,dead_time,time_period);
-
-    if(ret!=0)
-        return ret;
-
-    ret=frequencyCheck(frequency);
-    
-    if(ret!=0)
-        return ret;
-
-    
-    int phase=phaseCalculate(total_gpio);
-    
-
-    
-    pwm_line_t * pwm_line = (pwm_line_t*) malloc(sizeof(pwm_line_t)*total_gpio);
-
-    if(pwm_line==NULL)
-        return ESP_ERR_NO_MEM;
-    self->lines=pwm_line;
-
-
-    pwm_config_t line_config;
-    uint16_t current_phase=0;
-    for(uint8_t i=0;i<total_gpio;i++){
-        line_config.pulse_width=pulse_widths[i];
-        line_config.channel_number=i;
-        line_config.dead_time=dead_time;
-        line_config.gpio=gpio_no[i];
-        line_config.phase=current_phase;
-        line_config.channel_number=i;
-        line_config.time_period=time_period;
-        ESP_ERROR_CHECK(pwmCreate(&pwm_line[i],&line_config));
-        current_phase+=phase;
-        ESP_LOGI(TAG,"creating");       
+int interleavedPWMCreate(interleaved_pwm_t* self, interleaved_pwm_config_t* config)
+{
+    if ( self == NULL ||
+         config == NULL ||
+         config->gpio_no == NULL ||
+         config->pulse_widths == NULL ||
+         config->time_period == 0 ||
+         config->total_gpio == 0 )
+    {
+        return ERR_PROBE_MANAGER_INVALID_MEM;
     }
 
-    self->interface.start=start;
-    self->interface.stop=stop;
-    self->interface.destroy=destroy;
-    self->time_period=config->time_period;
+    uint8_t total_gpio   = config->total_gpio;
+    uint32_t time_period = config->time_period;
+    uint32_t dead_time   = config->dead_time;
+    uint32_t* pulse_widths = config->pulse_widths;
+    uint8_t* gpio_no       = config->gpio_no;
 
-    ESP_LOGI(TAG,"bye bye");       
+    int frequency = 1000000 / time_period;
+
+    /* Check pulse widths against slot limits */
+    int ret = pulseWidthCheck(pulse_widths, total_gpio, dead_time, time_period);
+    if(ret != 0)
+        return ret;
+
+    //ret = frequencyCheck(frequency);
+    //if(ret != 0)
+      //  return ret;
+
+    /* Calculate slot time for interleaving */
+    uint32_t slot = time_period / total_gpio;
+
+    pwm_line_t* pwm_line = malloc(sizeof(pwm_line_t) * total_gpio);
+    if(pwm_line == NULL)
+        return ESP_ERR_NO_MEM;
+
+    self->lines = pwm_line;
+
+    pwm_config_t line_config;
+    uint32_t current_phase = 0;
+
+    for(uint8_t i = 0; i < total_gpio; i++)
+    {
+        line_config.pulse_width    = pulse_widths[i];
+        line_config.channel_number = i;
+        line_config.dead_time      = dead_time;
+        line_config.gpio           = gpio_no[i];
+        line_config.phase          = current_phase;
+        line_config.time_period    = time_period;
+
+        ESP_ERROR_CHECK(pwmCreate(&pwm_line[i], &line_config));
+
+        current_phase += slot;
+
+        ESP_LOGI(TAG, "creating channel %d phase %lu", i, current_phase);
+    }
+
+    self->interface.start   = start;
+    self->interface.stop    = stop;
+    self->interface.destroy = destroy;
+
+    self->time_period = time_period;
+
+    ESP_LOGI(TAG, "interleaved PWM created");
+
     return 0;
-
 }
-
-
-
