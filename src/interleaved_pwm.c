@@ -7,7 +7,7 @@ multiple gpio in esp32, so all those gpio will have same pwm signal.
 #include "esp_log.h"
 #include "esp_err.h"
 #include "pwm_line.h"
-#include "probe_manager.h"
+#include "multi_pwm.h"
 
 
 //static const uint8_t duty_one=100;
@@ -34,9 +34,9 @@ static const char* TAG="pwm line";
 
 
 
-static int start(prober_interface_t* self){
+static int start(interleaved_pwm_interface_t* self){
 
-    prober_t* prb=container_of(self,prober_t,interface);
+    interleaved_pwm_t* prb=container_of(self,interleaved_pwm_t,interface);
 
     pwm_line_t* lines=(pwm_line_t*) prb->lines;
     uint8_t total_lines=prb->total_lines;
@@ -49,9 +49,9 @@ static int start(prober_interface_t* self){
 }
 
 
-static int stop(prober_interface_t* self){
+static int stop(interleaved_pwm_interface_t* self){
 
-    prober_t* prb=container_of(self,prober_t,interface);
+    interleaved_pwm_t* prb=container_of(self,interleaved_pwm_t,interface);
 
     pwm_line_t* lines=(pwm_line_t*) prb->lines;
     uint8_t total_lines=prb->total_lines;
@@ -102,9 +102,9 @@ static int pulseWidthCheck(uint32_t* pulse_widths,uint8_t total_gpio,uint32_t de
 }
 
 
-static int destroy(prober_interface_t* self)
+static int destroy(interleaved_pwm_interface_t* self)
 {
-    prober_t* prb = container_of(self, prober_t, interface);
+    interleaved_pwm_t* prb = container_of(self, interleaved_pwm_t, interface);
 
     pwm_line_t* lines = prb->lines;
 
@@ -119,7 +119,7 @@ static int destroy(prober_interface_t* self)
     return 0;
 }
 
-int proberCreate(prober_t* self,prober_config_t* config){
+int proberCreate(interleaved_pwm_t* self,interleaved_pwm_config_t* config){
 
     if(self==NULL || config==NULL)
         return ERR_PROBE_MANAGER_INVALID_MEM;

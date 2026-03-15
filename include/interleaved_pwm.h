@@ -18,35 +18,35 @@
 is given in percentage instead of microseconds. So values in accepted in format which are convinient
 to the enduser. And it is the job of the class to calculate/convert the values.
 */
-typedef struct prober_config{
+typedef struct{
 
     uint8_t* gpio_no;
     uint32_t* pulse_widths;          //in microseconds. Array size equal to total_gpio. Width of each pulse. cannot be caluculated as complex requireent of distinct.
     uint8_t total_gpio;
     uint32_t time_period;           //in microseconds
     uint32_t dead_time;             //microseconds. Dead Time between each pulse. The phase is determined by this
-}prober_config_t;
+}interleaved_pwm_config_t;
 
 
 
-typedef struct prober_interface{
-    int (*start)(struct prober_interface* self);
-    int (*stop)(struct prober_interface* self);
-    static void destroy(struct prober_interface* self)
+typedef struct {
+    int (*start)(struct interleaved_pwm_interface* self);
+    int (*stop)(struct interleaved_pwm_interface* self);
+    int (*destroy)(struct interleaved_pwm_interface* self);
 
     uint32_t (*getTimePeriod)();
-}prober_interface_t;
+}interleaved_pwm_interface_t;
 
 
 //It needs to be changed. This  whole struct must be private and only interface must be returned
 
-typedef struct prober{
+typedef struct {
     uint32_t time_period;
     void* lines;                //internally typcasted to  pwm_line_t. encapsulation
     uint8_t total_lines;
-    prober_interface_t interface;
-}prober_t;   
+    interleaved_pwm_interface_t interface;
+}interleaved_pwm_t;   
 
 
-int proberCreate(prober_t* self,prober_config_t* config);
+int proberCreate(interleaved_pwm_t* self,interleaved_pwm_config_t* config);
 #endif
