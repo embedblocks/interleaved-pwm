@@ -164,13 +164,15 @@ int interleavedPWMCreate(interleaved_pwm_t* self, interleaved_pwm_config_t* conf
       //  return ret;
 
     /* Calculate slot time for interleaving */
-    uint32_t slot = time_period / total_gpio;
+    //uint32_t slot = time_period / total_gpio;
+    int phase= phaseCalculate(config->total_gpio);
 
     pwm_line_t* pwm_line = malloc(sizeof(pwm_line_t) * total_gpio);
     if(pwm_line == NULL)
         return ESP_ERR_NO_MEM;
 
     self->lines = pwm_line;
+    self->total_lines=total_gpio;
 
     pwm_config_t line_config;
     uint32_t current_phase = 0;
@@ -179,14 +181,14 @@ int interleavedPWMCreate(interleaved_pwm_t* self, interleaved_pwm_config_t* conf
     {
         line_config.pulse_width    = pulse_widths[i];
         line_config.channel_number = i;
-        line_config.dead_time      = dead_time;
+        line_config.dead_time      = 0;         //Not used in new design, bcz becomes meaningless at steady state, all get a deadtime offset
         line_config.gpio           = gpio_no[i];
         line_config.phase          = current_phase;
         line_config.time_period    = time_period;
 
         ESP_ERROR_CHECK(pwmCreate(&pwm_line[i], &line_config));
 
-        current_phase += slot;
+        current_phase += phase;
 
         ESP_LOGI(TAG, "creating channel %d phase %lu", i, current_phase);
     }
