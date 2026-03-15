@@ -39,6 +39,8 @@ static int start(interleaved_pwm_interface_t* self){
     interleaved_pwm_t* prb=container_of(self,interleaved_pwm_t,interface);
 
     pwm_line_t* lines=(pwm_line_t*) prb->lines;
+    if(lines==NULL)
+        return ESP_FAIL;
     uint8_t total_lines=prb->total_lines;
 
     for(uint8_t i=0;i<total_lines;i++){
@@ -116,6 +118,8 @@ static int destroy(interleaved_pwm_interface_t* self)
     interleaved_pwm_t* prb = container_of(self, interleaved_pwm_t, interface);
 
     pwm_line_t* lines = prb->lines;
+    if(lines==NULL)
+        return ESP_FAIL;
 
     ESP_LOGI(TAG,"destroying prober, total lines %d",prb->total_lines);
 
