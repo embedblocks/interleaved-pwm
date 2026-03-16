@@ -13,6 +13,7 @@ static const char* TAG="pwm line";
 
 
 
+
 #define CONTAINER_OF(ptr, type, member) \
     ((type *)((char *)(ptr) - offsetof(type, member)))
 
@@ -99,8 +100,23 @@ static void pwmStart(pwm_line_interface_t* self){
     ledc_set_duty_with_hpoint(LEDC_MODE,pwm_line->channel_number,pwm_line->duty,pwm_line->hpoint);
     ledc_update_duty(LEDC_MODE, pwm_line->channel_number);
 
+
+
 }
 
+
+static void pwmChangeWidth(struct pwm_line_interface* self,uint32_t pulse_width_us,uint32_t time_period){   //in microseconds
+
+
+
+    pwm_line_t* pwm_line=container_of(self,pwm_line_t,interface);
+    //Convert to Ticks
+    uint32_t duty_ticks= pulseWidthToTicks(pulse_width_us,time_period,LEDC_DUTY_RES);
+    //Set the duty member
+    pwm_line->duty=duty_ticks;
+    //Start with new duty
+    pwmStart(self);
+}
 
 static void pwmDestroy(pwm_line_interface_t* self)
 {
@@ -109,7 +125,7 @@ static void pwmDestroy(pwm_line_interface_t* self)
     ledc_stop(LEDC_MODE, pwm_line->channel_number, 0);
 
     gpio_reset_pin(pwm_line->gpio_number);
-    
+
 }
 
 
@@ -165,6 +181,7 @@ int pwmCreate(pwm_line_t* self,pwm_config_t*  config){
     self->interface.pwmStart=pwmStart;
     self->interface.pwmStop=pwmStop;
     self->interface.pwmDestroy=pwmDestroy;
+    self->interface.pwmChangeWidth=pwmChangeWidth;
 
     //ESP_LOGI(TAG,"returning from pwm_line");
 
