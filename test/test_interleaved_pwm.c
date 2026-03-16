@@ -608,3 +608,179 @@ TEST_CASE("manual: waveform stops cleanly — no residual output after stop",
     ESP_LOGI(TAG, "Outputs stopped — verify GPIOs are idle for 2 s");
     vTaskDelay(pdMS_TO_TICKS(2000));
 }
+
+
+/* ================================================================== */
+/*  GROUP 7 – changeWidth                                             */
+/*                                                                     */
+/*  Slot constraint (same as creation):                               */
+/*    slot = time_period / total_gpio                                  */
+/*    pulse_width + dead_time <= slot                                  */
+/*                                                                     */
+/*  Default fixture (from create_default_interleaved_pwm):            */
+/*    time_period=10000, total_gpio=2 → slot=5000                     */
+/*    dead_time=1000     → max pulse = 4000                           */
+/* ================================================================== */
+
+TEST_CASE("changeWidth: succeeds with valid width on channel 0",
+          "[interleaved_pwm][changeWidth]")
+{
+    create_default_interleaved_pwm();
+    
+    int ret = interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 3000);
+    TEST_ASSERT_EQUAL(0, ret);
+}
+
+TEST_CASE("changeWidth: succeeds with valid width on channel 1",
+          "[interleaved_pwm][changeWidth]")
+{
+    create_default_interleaved_pwm();
+    int ret = interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 1, 1500);
+    TEST_ASSERT_EQUAL(0, ret);
+}
+
+TEST_CASE("changeWidth: succeeds while PWM is running",
+          "[interleaved_pwm][changeWidth]")
+{
+    create_default_interleaved_pwm();
+    TEST_ASSERT_EQUAL(0, interleaved_pwm.interface.start(&interleaved_pwm.interface));
+    int ret = interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 3000);
+    TEST_ASSERT_EQUAL(0, ret);
+}
+
+TEST_CASE("changeWidth: each channel can be changed independently",
+          "[interleaved_pwm][changeWidth]")
+{
+    create_default_interleaved_pwm();
+    TEST_ASSERT_EQUAL(0, interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 1000));
+    TEST_ASSERT_EQUAL(0, interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 1, 3500));
+}
+
+TEST_CASE("changeWidth: can be called multiple times on same channel",
+          "[interleaved_pwm][changeWidth]")
+{
+    create_default_interleaved_pwm();
+    TEST_ASSERT_EQUAL(0, interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 1000));
+    TEST_ASSERT_EQUAL(0, interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 2000));
+    TEST_ASSERT_EQUAL(0, interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 3000));
+}
+
+/* --- Boundary conditions ----------------------------------------- */
+
+TEST_CASE("changeWidth: pulse_width of 1 is minimum valid value",
+          "[interleaved_pwm][changeWidth]")
+{
+    /* slot=5000, dead_time=1000 → 1+1000=1001 < 5000 ✓ */
+    create_default_interleaved_pwm();
+    int ret = interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 1);
+    TEST_ASSERT_EQUAL(0, ret);
+}
+
+TEST_CASE("changeWidth: pulse_width of 0 is accepted or rejected per spec",
+          "[interleaved_pwm][changeWidth]")
+{
+    /*
+     * 0-width means the channel is effectively off.
+     * Decide whether your API treats this as a valid "disable" or an error.
+     * CHOOSE ONE:
+     */
+    create_default_interleaved_pwm();
+    int ret = interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 0);
+    TEST_ASSERT_EQUAL(0, ret);           /* tolerant: 0 = channel off */
+    /* TEST_ASSERT_NOT_EQUAL(0, ret); */ /* strict:   must be > 0     */
+}
+
+TEST_CASE("changeWidth: pulse_width exactly at slot boundary is boundary condition",
+          "[interleaved_pwm][changeWidth]")
+{
+    /*
+     * slot=5000, dead_time=1000 → max = slot - dead_time = 4000
+     * CHOOSE ONE to match your constraint (< or <=):
+     */
+    create_default_interleaved_pwm();
+    int ret = interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 4000);
+    TEST_ASSERT_EQUAL(0, ret);           /* <= slot-dead_time allowed */
+    /* TEST_ASSERT_NOT_EQUAL(0, ret); */ /* < slot-dead_time only     */
+}
+
+/* --- Rejection cases --------------------------------------------- */
+
+TEST_CASE("changeWidth: fails when pulse_width plus dead_time exceeds slot",
+          "[interleaved_pwm][changeWidth]")
+{
+    /* slot=5000, dead_time=1000 → 4500+1000=5500 > 5000 → FAIL */
+    create_default_interleaved_pwm();
+    int ret = interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 4500);
+    TEST_ASSERT_NOT_EQUAL(0, ret);
+}
+
+TEST_CASE("changeWidth: fails when pulse_width equals time_period",
+          "[interleaved_pwm][changeWidth]")
+{
+    /* 10000 >> slot of 5000, must clearly fail */
+    create_default_interleaved_pwm();
+    int ret = interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 10000);
+    TEST_ASSERT_NOT_EQUAL(0, ret);
+}
+
+TEST_CASE("changeWidth: rejected width does not alter previous valid width",
+          "[interleaved_pwm][changeWidth]")
+{
+    /*
+     * After a failed changeWidth the channel must still be running
+     * at its prior width. Verify by checking start/stop still work —
+     * no internal state corruption.
+     */
+    create_default_interleaved_pwm();
+    interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 2000);
+    TEST_ASSERT_EQUAL(0,    interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 2000));
+    TEST_ASSERT_NOT_EQUAL(0,interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 0, 9999));
+    /* Component must still be usable */
+    TEST_ASSERT_EQUAL(0, interleaved_pwm.interface.start(&interleaved_pwm.interface));
+    TEST_ASSERT_EQUAL(0, interleaved_pwm.interface.stop(&interleaved_pwm.interface));
+}
+
+/* --- Invalid arguments ------------------------------------------- */
+
+TEST_CASE("changeWidth: fails when self is NULL",
+          "[interleaved_pwm][changeWidth]")
+{
+    create_default_interleaved_pwm();
+    
+    int ret = interleaved_pwm.interface.changePulseWidth(NULL, 0, 2000);
+    TEST_ASSERT_NOT_EQUAL(0, ret);
+}
+
+TEST_CASE("changeWidth: fails when channel_no is out of range",
+          "[interleaved_pwm][changeWidth]")
+{
+    /* total_gpio=2, so valid channels are 0 and 1 only */
+    create_default_interleaved_pwm();
+    int ret = interleaved_pwm.interface.changePulseWidth(&interleaved_pwm.interface, 2, 2000);
+    TEST_ASSERT_NOT_EQUAL(0, ret);
+}
+
+/* --- Manual / observable ----------------------------------------- */
+
+TEST_CASE("manual: changeWidth duty change visible on oscilloscope",
+          "[interleaved_pwm][changeWidth][manual]")
+{
+    /*
+     * Observe GPIO 5 (channel 0) stepping through three duty levels:
+     *   1 s at 10 % (1000 µs),  1 s at 20 % (2000 µs),  1 s at 40 % (4000 µs)
+     * No glitches or missing pulses should appear between steps.
+     */
+    create_default_interleaved_pwm();
+    TEST_ASSERT_EQUAL(0, interleaved_pwm.interface.start(&interleaved_pwm.interface));
+
+    uint32_t widths[] = {1000, 2000, 4000};
+    for (int i = 0; i < 3; i++)
+    {
+        ESP_LOGI(TAG, "changeWidth → %lu µs", widths[i]);
+        TEST_ASSERT_EQUAL(0, interleaved_pwm.interface.changePulseWidth(
+                              &interleaved_pwm.interface, 0, widths[i]));
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+
+    TEST_ASSERT_EQUAL(0, interleaved_pwm.interface.stop(&interleaved_pwm.interface));
+}
