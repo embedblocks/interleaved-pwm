@@ -33,6 +33,7 @@ typedef struct interleaved_pwm_interface{
     int (*start)(struct interleaved_pwm_interface* self);
     int (*stop)(struct interleaved_pwm_interface* self);
     int (*destroy)(struct interleaved_pwm_interface* self);
+    int (*changePulseWidth)(struct interleaved_pwm_interface* self,uint8_t channel_no, uint32_t pulse_widths);
 
     uint32_t (*getTimePeriod)();
 }interleaved_pwm_interface_t;
@@ -44,6 +45,7 @@ typedef struct {
     uint32_t time_period;
     void* lines;                //internally typcasted to  pwm_line_t. encapsulation
     uint8_t total_lines;
+    uint32_t dead_time;             //microseconds. Dead Time between each pulse. The phase is determined by this
     interleaved_pwm_interface_t interface;
 }interleaved_pwm_t;   
 

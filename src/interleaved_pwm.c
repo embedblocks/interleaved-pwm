@@ -15,7 +15,7 @@ multiple gpio in esp32, so all those gpio will have same pwm signal.
 
 
 
-static const char* TAG="pwm line";
+static const char* TAG="interleaved pwm";
 
 
 
@@ -33,39 +33,6 @@ static const char* TAG="pwm line";
 
 
 
-
-static int start(interleaved_pwm_interface_t* self){
-
-    interleaved_pwm_t* prb=container_of(self,interleaved_pwm_t,interface);
-
-    pwm_line_t* lines=(pwm_line_t*) prb->lines;
-    if(lines==NULL)
-        return ESP_FAIL;
-    uint8_t total_lines=prb->total_lines;
-
-    for(uint8_t i=0;i<total_lines;i++){
-        lines[i].interface.pwmStart(&lines[i].interface);
-    }
-
-    return 0;
-}
-
-
-static int stop(interleaved_pwm_interface_t* self){
-
-    interleaved_pwm_t* prb=container_of(self,interleaved_pwm_t,interface);
-
-    pwm_line_t* lines=(pwm_line_t*) prb->lines;
-    if(lines==NULL)
-        return ESP_FAIL;
-    uint8_t total_lines=prb->total_lines;
-
-    for(uint8_t i=0;i<total_lines;i++){
-        lines[i].interface.pwmStop(&lines[i].interface);
-    }
-
-    return 0;
-}
 
 //not used
 static int proberCheckDeadTime(uint32_t time_period,uint32_t dead_time){
@@ -93,6 +60,23 @@ static int phaseCalculate(uint8_t total_gpio){
     return 360/total_gpio;
 }
 
+/// @brief  Allm channles get slot equally divided from total time_period
+////////The pulse width + the required dead time before next pulse starts must not exceed the slot
+/// @param pulse_widths 
+/// @param dead_time 
+/// @param slot_width 
+/// @return 
+static bool pulseWidthInvalid(uint32_t pulse_widths,
+                           uint32_t dead_time,
+                           uint32_t slot_width){
+
+    if((pulse_widths + dead_time) > slot_width)
+        return true;
+
+    return false;
+
+}
+
 static int pulseWidthCheck(uint32_t* pulse_widths,
                            uint8_t total_gpio,
                            uint32_t dead_time,
@@ -105,7 +89,8 @@ static int pulseWidthCheck(uint32_t* pulse_widths,
 
     for(uint8_t i = 0; i < total_gpio; i++)
     {
-        if(pulse_widths[i] + dead_time > slot)
+        //If width + dead time exceeds the slot 
+        if(pulseWidthInvalid(pulse_widths[i],dead_time,slot))
             return ERR_PROBE_MANAGER_WRONG_PARAMETERS;
     }
 
@@ -113,8 +98,82 @@ static int pulseWidthCheck(uint32_t* pulse_widths,
 }
 
 
+
+
+static int start(interleaved_pwm_interface_t* self){
+
+    if(self==NULL)    
+        return ESP_FAIL;
+
+    interleaved_pwm_t* prb=container_of(self,interleaved_pwm_t,interface);
+
+    pwm_line_t* lines=(pwm_line_t*) prb->lines;
+    if(lines==NULL)
+        return ESP_FAIL;
+    uint8_t total_lines=prb->total_lines;
+
+    for(uint8_t i=0;i<total_lines;i++){
+        lines[i].interface.pwmStart(&lines[i].interface);
+    }
+
+    return 0;
+}
+
+
+static int stop(interleaved_pwm_interface_t* self){
+
+    if(self==NULL)    
+        return ESP_FAIL;
+
+    interleaved_pwm_t* prb=container_of(self,interleaved_pwm_t,interface);
+
+    pwm_line_t* lines=(pwm_line_t*) prb->lines;
+    if(lines==NULL)
+        return ESP_FAIL;
+    uint8_t total_lines=prb->total_lines;
+
+    for(uint8_t i=0;i<total_lines;i++){
+        lines[i].interface.pwmStop(&lines[i].interface);
+    }
+
+    return 0;
+}
+
+
+static int changeWidth(interleaved_pwm_interface_t* self,uint8_t channel_no,uint32_t pulse_width){
+
+    
+    if(self==NULL)    
+        return ESP_FAIL;
+    interleaved_pwm_t* prb=container_of(self,interleaved_pwm_t,interface);
+
+    pwm_line_t* lines=(pwm_line_t*) prb->lines;
+
+    if(lines==NULL)
+        return ESP_FAIL;
+    uint8_t total_lines=prb->total_lines;
+
+    //Check channel_no>(total_lines-1) because channel number s start from 0
+    if(channel_no<0 || channel_no>(total_lines-1))
+        return ESP_FAIL;
+
+    ESP_LOGI(TAG,"changing total_lines %d  slot width %d, channel_no %d",total_lines,prb->time_period/prb->total_lines,channel_no);
+    if(pulseWidthInvalid(pulse_width,prb->dead_time,prb->time_period/prb->total_lines))
+        return ESP_FAIL;
+
+    lines[channel_no].interface.pwmChangeWidth(&lines[channel_no].interface,pulse_width,prb->time_period);
+    //for(uint8_t i=0;i<total_lines;i++){
+      //  lines[i].interface.pwmStop(&lines[i].interface);
+    //}
+
+    return 0;
+}
+
+
 static int destroy(interleaved_pwm_interface_t* self)
 {
+    if(self==NULL)    
+        return ESP_FAIL;
     interleaved_pwm_t* prb = container_of(self, interleaved_pwm_t, interface);
 
     pwm_line_t* lines = prb->lines;
@@ -196,8 +255,10 @@ int interleavedPWMCreate(interleaved_pwm_t* self, interleaved_pwm_config_t* conf
     self->interface.start   = start;
     self->interface.stop    = stop;
     self->interface.destroy = destroy;
+    self->interface.changePulseWidth=changeWidth;
 
     self->time_period = time_period;
+    self->dead_time=dead_time;
 
     ESP_LOGI(TAG, "interleaved PWM created");
 
