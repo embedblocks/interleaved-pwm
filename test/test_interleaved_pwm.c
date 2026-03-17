@@ -783,3 +783,192 @@ TEST_CASE("manual: changeWidth duty change visible on oscilloscope",
 
     TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
 }
+
+
+
+/* ================================================================== */
+/*  GROUP 8 – Resolution and frequency validation                     */
+/*                                                                     */
+/*  Fixture: 4 channels, dead_time=1000, clk=80MHz                   */
+/*  res_min  = ceil(log2(4/0.05)) = 7 bits                            */
+/*  max pass = floor(log2(80000000/freq)) >= 7                        */
+/*  boundary = 80000000 / 2^7 = 625 000 Hz                           */
+/* ================================================================== */
+
+/* --- Valid frequencies ------------------------------------------- */
+
+TEST_CASE("resolution: low frequency 50 Hz is accepted",
+          "[interleaved_pwm][resolution]")
+{
+    /* res_max = floor(log2(80000000/50)) = floor(20.6) = 20 → capped at chip max */
+    static uint8_t  gpio_list[4]    = {5, 18, 22, 23};
+    static uint32_t pulse_widths[4] = {2000, 2000, 2000, 2000};
+
+    interleaved_pwm_config_t config = {
+        .gpio_no      = gpio_list,
+        .pulse_widths = pulse_widths,
+        .total_gpio   = 4,
+        .dead_time    = 1000,
+        .frequency    = 50
+    };
+
+    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
+    TEST_ASSERT_EQUAL(0, ret);
+    interleavedPWMCreated = true;
+}
+
+TEST_CASE("resolution: mid frequency 1 kHz is accepted",
+          "[interleaved_pwm][resolution]")
+{
+    /* res_max = floor(log2(80000000/1000)) = floor(16.3) = 16 > 7 */
+    static uint8_t  gpio_list[4]    = {5, 18, 22, 23};
+    static uint32_t pulse_widths[4] = {200, 200, 200, 200};
+
+    interleaved_pwm_config_t config = {
+        .gpio_no      = gpio_list,
+        .pulse_widths = pulse_widths,
+        .total_gpio   = 4,
+        .dead_time    = 100,
+        .frequency    = 1000
+    };
+
+    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
+    TEST_ASSERT_EQUAL(0, ret);
+    interleavedPWMCreated = true;
+}
+
+TEST_CASE("resolution: 100 kHz is accepted",
+          "[interleaved_pwm][resolution]")
+{
+    /* res_max = floor(log2(80000000/100000)) = floor(9.6) = 9 > 7 */
+    static uint8_t  gpio_list[4]    = {5, 18, 22, 23};
+    static uint32_t pulse_widths[4] = {2, 2, 2, 2};
+
+    interleaved_pwm_config_t config = {
+        .gpio_no      = gpio_list,
+        .pulse_widths = pulse_widths,
+        .total_gpio   = 4,
+        .dead_time    = 1,
+        .frequency    = 100000
+    };
+
+    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
+    TEST_ASSERT_EQUAL(0, ret);
+    interleavedPWMCreated = true;
+}
+
+/* --- Boundary ---------------------------------------------------- */
+
+TEST_CASE("resolution: 625 kHz is the boundary frequency for 4 channels",
+          "[interleaved_pwm][resolution]")
+{
+    /*
+     * res_max = floor(log2(80000000/625000)) = floor(log2(128)) = 7
+     * res_min = 7
+     * res_max == res_min → exactly passes
+     */
+    static uint8_t  gpio_list[4]    = {5, 18, 22, 23};
+    static uint32_t pulse_widths[4] = {1, 1, 1, 1};
+
+    interleaved_pwm_config_t config = {
+        .gpio_no      = gpio_list,
+        .pulse_widths = pulse_widths,
+        .total_gpio   = 4,
+        .dead_time    = 0,
+        .frequency    = 625000
+    };
+
+    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
+    TEST_ASSERT_EQUAL(0, ret);
+    interleavedPWMCreated = true;
+}
+
+TEST_CASE("resolution: one step above boundary 626 kHz is rejected",
+          "[interleaved_pwm][resolution]")
+{
+    /*
+     * res_max = floor(log2(80000000/626000)) = floor(log2(127.8)) = 6
+     * res_min = 7
+     * res_max < res_min → rejected
+     */
+    static uint8_t  gpio_list[4]    = {5, 18, 22, 23};
+    static uint32_t pulse_widths[4] = {1, 1, 1, 1};
+
+    interleaved_pwm_config_t config = {
+        .gpio_no      = gpio_list,
+        .pulse_widths = pulse_widths,
+        .total_gpio   = 4,
+        .dead_time    = 0,
+        .frequency    = 626000
+    };
+
+    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
+    TEST_ASSERT_NOT_EQUAL(0, ret);
+}
+
+/* --- Rejection cases --------------------------------------------- */
+
+TEST_CASE("resolution: 1 MHz is rejected for 4 channels",
+          "[interleaved_pwm][resolution]")
+{
+    /* res_max = floor(log2(80)) = 6 < res_min(7) → rejected */
+    static uint8_t  gpio_list[4]    = {5, 18, 22, 23};
+    static uint32_t pulse_widths[4] = {1, 1, 1, 1};
+
+    interleaved_pwm_config_t config = {
+        .gpio_no      = gpio_list,
+        .pulse_widths = pulse_widths,
+        .total_gpio   = 4,
+        .dead_time    = 0,
+        .frequency    = 1000000
+    };
+
+    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
+    TEST_ASSERT_NOT_EQUAL(0, ret);
+}
+
+TEST_CASE("resolution: frequency of zero is rejected",
+          "[interleaved_pwm][resolution]")
+{
+    /* log2(clk/0) is undefined — must not crash or divide by zero */
+    static uint8_t  gpio_list[4]    = {5, 18, 22, 23};
+    static uint32_t pulse_widths[4] = {2000, 2000, 2000, 2000};
+
+    interleaved_pwm_config_t config = {
+        .gpio_no      = gpio_list,
+        .pulse_widths = pulse_widths,
+        .total_gpio   = 4,
+        .dead_time    = 1000,
+        .frequency    = 0
+    };
+
+    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
+    TEST_ASSERT_NOT_EQUAL(0, ret);
+}
+
+/* --- Channel count affects boundary ------------------------------ */
+
+TEST_CASE("resolution: fewer channels allows higher frequency",
+          "[interleaved_pwm][resolution]")
+{
+    /*
+     * With 2 channels:
+     *   res_min = ceil(log2(2/0.05)) = ceil(log2(40)) = ceil(5.32) = 6 bits
+     *   boundary = 80000000 / 2^6 = 1 250 000 Hz
+     *   So 1 MHz should pass for 2 channels but fails for 4.
+     */
+    static uint8_t  gpio_list[2]    = {5, 18};
+    static uint32_t pulse_widths[2] = {1, 1};
+
+    interleaved_pwm_config_t config = {
+        .gpio_no      = gpio_list,
+        .pulse_widths = pulse_widths,
+        .total_gpio   = 2,
+        .dead_time    = 0,
+        .frequency    = 1000000
+    };
+
+    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
+    TEST_ASSERT_EQUAL(0, ret);
+    interleavedPWMCreated = true;
+}
