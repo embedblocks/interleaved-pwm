@@ -32,7 +32,8 @@ static const char* TAG="interleaved pwm";
         (type *)( (char *)__mptr - offsetof(type,member) );})
 
 
-
+//A makeshift  arrangment to create only one instance
+static bool instance_created=false;
 
 //not used
 static int proberCheckDeadTime(uint32_t time_period,uint32_t dead_time){
@@ -190,7 +191,72 @@ static int destroy(interleaved_pwm_interface_t* self)
     free(lines);
     prb->lines = NULL;
 
+    instance_created=false;
+
     return 0;
+}
+
+
+/**
+ * @brief Compute optimal LEDC timer resolution for interleaved PWM
+ *
+ * This function selects the highest possible PWM resolution that satisfies:
+ *
+ * 1. Hardware constraint:
+ *    The requested PWM frequency must be achievable given the LEDC clock.
+ *
+ *        f_pwm ≤ f_clk / (2^resolution)
+ *
+ * 2. Interleaving quality constraint:
+ *    Each interleaved slot must have sufficient timing granularity so that
+ *    pulse widths can be meaningfully controlled.
+ *
+ *        time_step ≤ slot_width × threshold
+ *
+ *    Which simplifies to:
+ *
+ *        2^resolution ≥ channels / threshold
+ *
+ * The function computes:
+ *
+ *    resolution_max = floor(log2(f_clk / f_pwm))
+ *    resolution_min = ceil(log2(channels / threshold))
+ *
+ * and selects the maximum valid resolution in the range:
+ *
+ *    resolution_min ≤ resolution ≤ resolution_max
+ *
+ * If no valid resolution exists, the configuration is rejected.
+ *
+ * @param freq_hz        Desired PWM frequency in Hz
+ * @param channels       Number of interleaved PWM channels
+ * @param threshold      Minimum ratio of slot width to timer step,
+ *                       (e.g., 0.1 = at least 10 steps per slot)
+ *                       if timer step is bigger than this than wave generation not accurate
+ *                       For example if slot width i 1ms and timer step is > 0.1 m 
+ *                       then it is not accurate enough
+ *
+ * @return
+ *    >= 0 : Selected resolution in bits
+ *    -1   : No valid resolution exists for given parameters
+ *
+ * @note
+ * - Assumes LEDC clock is 80 MHz
+ * - Higher resolution provides finer duty control
+ * - Lower resolution allows higher PWM frequencies
+ */
+
+static int compute_resolution(uint32_t freq, uint8_t channels, float threshold)
+{
+    const uint32_t clk = 80000000;
+
+    int res_max = floor(log2((double)clk / freq));
+    int res_min = ceil(log2((double)channels / threshold));
+
+    if (res_min > res_max)
+        return -1;
+
+    return res_max;
 }
 
 int interleavedPWMCreate(interleaved_pwm_t* self, interleaved_pwm_config_t* config)
@@ -205,13 +271,32 @@ int interleavedPWMCreate(interleaved_pwm_t* self, interleaved_pwm_config_t* conf
         return ERR_PROBE_MANAGER_INVALID_MEM;
     }
 
+    
+    //Only once instance supported right now
+    if(instance_created==true)
+        return ESP_FAIL;
+
     uint8_t total_gpio   = config->total_gpio;
     uint32_t time_period = config->time_period;
     uint32_t dead_time   = config->dead_time;
     uint32_t* pulse_widths = config->pulse_widths;
     uint8_t* gpio_no       = config->gpio_no;
-
     int frequency = 1000000 / time_period;
+
+    if(config->total_gpio>pwmGetMaxChannels())
+        return ESP_FAIL;
+
+    
+
+    int timer_resolution=compute_resolution(frequency,total_gpio, 0.05);    //5% a
+
+    if(timer_resolution<=0)
+        return ESP_FAIL;
+    
+    
+    if(timer_resolution>pwmGetMaxTimerReolution())
+        timer_resolution=pwmGetMaxTimerReolution();
+    
 
     /* Check pulse widths against slot limits */
     int ret = pulseWidthCheck(pulse_widths, total_gpio, dead_time, time_period);
@@ -259,6 +344,9 @@ int interleavedPWMCreate(interleaved_pwm_t* self, interleaved_pwm_config_t* conf
 
     self->time_period = time_period;
     self->dead_time=dead_time;
+
+
+    instance_created=true;
 
     ESP_LOGI(TAG, "interleaved PWM created");
 
