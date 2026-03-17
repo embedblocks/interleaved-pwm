@@ -4,23 +4,19 @@
  * Demonstrates:
  *   1. Basic create / start / stop
  *   2. Runtime duty ramp (up and down in a loop)
- *   3. Multiple independent instances
- *   4. Power saving via stop + destroy
+ *   3. Power saving via stop + destroy
+ *
+ * NOTE:
+ *   This version supports only ONE interleaved PWM instance.
  *
  * Hardware:
- *   Instance A — boost converter (4 channels)
+ *   4-channel interleaved PWM
  *     CH0 → GPIO 5
  *     CH1 → GPIO 18
  *     CH2 → GPIO 22
  *     CH3 → GPIO 23
  *
- *   Instance B — auxiliary converter (4 channels)
- *     CH0 → GPIO 25
- *     CH1 → GPIO 26
- *     CH2 → GPIO 27
- *     CH3 → GPIO 32
- *
- * Timing (both instances):
+ * Timing:
  *   time_period = 20 000 µs  (50 Hz)
  *   dead_time   =  1 000 µs
  *   slot        =  5 000 µs  (20 000 / 4 channels)
@@ -40,38 +36,30 @@ static const char *TAG = "pwm_example";
 /*  Configuration                                                      */
 /* ------------------------------------------------------------------ */
 
-#define TIME_PERIOD_US   20000u   /* full switching period            */
-#define DEAD_TIME_US      1000u   /* blanking gap between phases      */
-#define NUM_CHANNELS         4u   /* phases per instance              */
+#define TIME_PERIOD_US   20000u
+#define DEAD_TIME_US      1000u
+#define NUM_CHANNELS         4u
 
-/* Slot = TIME_PERIOD_US / NUM_CHANNELS = 5000 µs
-   Valid pulse range: 1 µs  to  slot - dead_time = 4000 µs           */
 #define RAMP_MIN_US        500u
 #define RAMP_MAX_US       4000u
 #define RAMP_STEP_US       100u
-#define RAMP_STEP_MS        50u   /* delay between each step          */
+#define RAMP_STEP_MS        50u
 
-#define HOLD_MS           2000u   /* pause at top and bottom of ramp  */
-#define IDLE_MS           3000u   /* both instances off between cycles */
+#define HOLD_MS           2000u
+#define IDLE_MS           3000u
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-/*
- * Create and start a 4-channel interleaved PWM instance.
- * All channels start at the same initial pulse width.
- */
 static esp_err_t converter_init(interleaved_pwm_t *pwm,
                                 uint8_t           *gpio_list,
                                 uint32_t           initial_width_us)
 {
-    /* Each channel gets the same starting width */
     uint32_t pulse_widths[NUM_CHANNELS];
+
     for (int i = 0; i < NUM_CHANNELS; i++)
-    {
         pulse_widths[i] = initial_width_us;
-    }
 
     interleaved_pwm_config_t config = {
         .gpio_no      = gpio_list,
@@ -95,49 +83,41 @@ static esp_err_t converter_init(interleaved_pwm_t *pwm,
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "Converter started — initial width %lu µs", initial_width_us);
+    ESP_LOGI(TAG, "PWM started — initial width %lu µs", initial_width_us);
     return ESP_OK;
 }
 
 /*
- * Ramp all channels of an instance from current_width up to RAMP_MAX_US
- * then back down to RAMP_MIN_US.
- * Both instances are updated in lock-step each step so their duty
- * tracks together for a symmetric dual-converter demonstration.
+ * Ramp all channels up and down
  */
-static void ramp_both(interleaved_pwm_t *pwm_a,
-                      interleaved_pwm_t *pwm_b)
+static void ramp(interleaved_pwm_t *pwm)
 {
     uint32_t width = RAMP_MIN_US;
-    int      direction = 1;   /* 1 = ramping up, -1 = ramping down */
+    int direction = 1;
 
     ESP_LOGI(TAG, "--- Ramp start ---");
 
     while (1)
     {
-        /* Apply new width to every channel on both instances */
         for (uint8_t ch = 0; ch < NUM_CHANNELS; ch++)
         {
-            int ret_a = PWM_SET_WIDTH(pwm_a, ch, width);
-            int ret_b = PWM_SET_WIDTH(pwm_b, ch, width);
+            int ret = PWM_SET_WIDTH(pwm, ch, width);
 
-            if (ret_a != 0 || ret_b != 0)
+            if (ret != 0)
             {
-                ESP_LOGW(TAG, "SET_WIDTH rejected on ch%u width=%lu µs (a=%d b=%d)",
-                         ch, width, ret_a, ret_b);
+                ESP_LOGW(TAG, "SET_WIDTH rejected ch%u width=%lu (%d)",
+                         ch, width, ret);
             }
         }
 
         ESP_LOGI(TAG, "Width → %4lu µs", width);
         vTaskDelay(pdMS_TO_TICKS(RAMP_STEP_MS));
 
-        /* Advance ramp */
         if (direction == 1)
         {
             if (width + RAMP_STEP_US >= RAMP_MAX_US)
             {
                 width = RAMP_MAX_US;
-                ESP_LOGI(TAG, "Peak reached — holding for %u ms", HOLD_MS);
                 vTaskDelay(pdMS_TO_TICKS(HOLD_MS));
                 direction = -1;
             }
@@ -151,7 +131,6 @@ static void ramp_both(interleaved_pwm_t *pwm_a,
             if (width <= RAMP_MIN_US + RAMP_STEP_US)
             {
                 width = RAMP_MIN_US;
-                ESP_LOGI(TAG, "Valley reached — ramp complete");
                 break;
             }
             else
@@ -162,28 +141,14 @@ static void ramp_both(interleaved_pwm_t *pwm_a,
     }
 }
 
-/*
- * Gracefully stop and destroy an instance, demonstrating the power
- * saving path: stop halts switching, destroy releases the peripheral
- * and resets the GPIO lines.
- */
-static void converter_shutdown(interleaved_pwm_t *pwm, const char *name)
+static void converter_shutdown(interleaved_pwm_t *pwm)
 {
-    ESP_LOGI(TAG, "Shutting down %s", name);
+    ESP_LOGI(TAG, "Shutting down PWM");
 
-    int ret = PWM_STOP(pwm);
-    if (ret != 0)
-    {
-        ESP_LOGW(TAG, "%s PWM_STOP returned %d", name, ret);
-    }
+    PWM_STOP(pwm);
+    PWM_DESTROY(pwm);
 
-    ret = PWM_DESTROY(pwm);
-    if (ret != 0)
-    {
-        ESP_LOGW(TAG, "%s PWM_DESTROY returned %d", name, ret);
-    }
-
-    ESP_LOGI(TAG, "%s offline — GPIOs reset, peripheral released", name);
+    ESP_LOGI(TAG, "PWM stopped and resources released");
 }
 
 /* ------------------------------------------------------------------ */
@@ -193,15 +158,10 @@ static void converter_shutdown(interleaved_pwm_t *pwm, const char *name)
 void app_main(void)
 {
     ESP_LOGI(TAG, "Interleaved PWM example starting");
-    ESP_LOGI(TAG, "Period %u µs | Dead time %u µs | %u channels per instance",
-             TIME_PERIOD_US, DEAD_TIME_US, NUM_CHANNELS);
 
-    /* GPIO assignments */
-    static uint8_t gpio_a[NUM_CHANNELS] = {5,  18, 22, 23};
-    static uint8_t gpio_b[NUM_CHANNELS] = {25, 26, 27, 32};
+    static uint8_t gpio[NUM_CHANNELS] = {5, 18, 22, 23};
 
-    interleaved_pwm_t boost_converter;
-    interleaved_pwm_t aux_converter;
+    interleaved_pwm_t pwm;
 
     int cycle = 0;
 
@@ -210,46 +170,17 @@ void app_main(void)
         cycle++;
         ESP_LOGI(TAG, "======== Cycle %d ========", cycle);
 
-        /* ---------------------------------------------------------- */
-        /*  1. Create and start both instances                        */
-        /* ---------------------------------------------------------- */
-
-        ESP_LOGI(TAG, "Initialising boost converter (GPIOs 5,18,22,23)");
-        if (converter_init(&boost_converter, gpio_a, RAMP_MIN_US) != ESP_OK)
+        if (converter_init(&pwm, gpio, RAMP_MIN_US) != ESP_OK)
         {
-            ESP_LOGE(TAG, "Boost converter init failed — halting");
+            ESP_LOGE(TAG, "Init failed — halting");
             return;
         }
 
-        ESP_LOGI(TAG, "Initialising aux converter   (GPIOs 25,26,27,32)");
-        if (converter_init(&aux_converter, gpio_b, RAMP_MIN_US) != ESP_OK)
-        {
-            ESP_LOGE(TAG, "Aux converter init failed — halting");
-            converter_shutdown(&boost_converter, "boost");
-            return;
-        }
+        ramp(&pwm);
 
-        /* ---------------------------------------------------------- */
-        /*  2. Ramp duty on both instances simultaneously             */
-        /* ---------------------------------------------------------- */
+        converter_shutdown(&pwm);
 
-        ramp_both(&boost_converter, &aux_converter);
-
-        /* ---------------------------------------------------------- */
-        /*  3. Stop and destroy — power saving / resource release     */
-        /* ---------------------------------------------------------- */
-
-        converter_shutdown(&boost_converter, "boost");
-        converter_shutdown(&aux_converter,   "aux  ");
-
-        /* ---------------------------------------------------------- */
-        /*  4. Idle period — both instances off, no switching         */
-        /* ---------------------------------------------------------- */
-
-        ESP_LOGI(TAG, "Both converters offline — idle for %u ms", IDLE_MS);
+        ESP_LOGI(TAG, "Idle for %u ms", IDLE_MS);
         vTaskDelay(pdMS_TO_TICKS(IDLE_MS));
-
-        /* Loop back and re-create both instances from scratch,
-           demonstrating that destroy + re-create works correctly    */
     }
 }
