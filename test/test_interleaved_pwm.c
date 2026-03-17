@@ -809,7 +809,7 @@ TEST_CASE("resolution: low frequency 50 Hz is accepted",
         .pulse_widths = pulse_widths,
         .total_gpio   = 4,
         .dead_time    = 1000,
-        .frequency    = 50
+        .time_period    = 1000000/50            //Timer period in microseconds
     };
 
     int ret = interleavedPWMCreate(&interleaved_pwm, &config);
@@ -829,7 +829,7 @@ TEST_CASE("resolution: mid frequency 1 kHz is accepted",
         .pulse_widths = pulse_widths,
         .total_gpio   = 4,
         .dead_time    = 100,
-        .frequency    = 1000
+        .time_period    = 1000000/1000
     };
 
     int ret = interleavedPWMCreate(&interleaved_pwm, &config);
@@ -849,7 +849,7 @@ TEST_CASE("resolution: 100 kHz is accepted",
         .pulse_widths = pulse_widths,
         .total_gpio   = 4,
         .dead_time    = 1,
-        .frequency    = 100000
+        .time_period = 1000000/100000
     };
 
     int ret = interleavedPWMCreate(&interleaved_pwm, &config);
@@ -875,7 +875,7 @@ TEST_CASE("resolution: 625 kHz is the boundary frequency for 4 channels",
         .pulse_widths = pulse_widths,
         .total_gpio   = 4,
         .dead_time    = 0,
-        .frequency    = 625000
+        .time_period = 1000000/625000
     };
 
     int ret = interleavedPWMCreate(&interleaved_pwm, &config);
@@ -899,7 +899,7 @@ TEST_CASE("resolution: one step above boundary 626 kHz is rejected",
         .pulse_widths = pulse_widths,
         .total_gpio   = 4,
         .dead_time    = 0,
-        .frequency    = 626000
+        .time_period = 1000000/626000
     };
 
     int ret = interleavedPWMCreate(&interleaved_pwm, &config);
@@ -920,14 +920,14 @@ TEST_CASE("resolution: 1 MHz is rejected for 4 channels",
         .pulse_widths = pulse_widths,
         .total_gpio   = 4,
         .dead_time    = 0,
-        .frequency    = 1000000
+        .time_period = 1000000/1000000
     };
 
     int ret = interleavedPWMCreate(&interleaved_pwm, &config);
     TEST_ASSERT_NOT_EQUAL(0, ret);
 }
 
-TEST_CASE("resolution: frequency of zero is rejected",
+TEST_CASE("resolution: time_period of zero is rejected",
           "[interleaved_pwm][resolution]")
 {
     /* log2(clk/0) is undefined — must not crash or divide by zero */
@@ -939,7 +939,7 @@ TEST_CASE("resolution: frequency of zero is rejected",
         .pulse_widths = pulse_widths,
         .total_gpio   = 4,
         .dead_time    = 1000,
-        .frequency    = 0
+        .time_period = 0
     };
 
     int ret = interleavedPWMCreate(&interleaved_pwm, &config);
@@ -965,7 +965,7 @@ TEST_CASE("resolution: fewer channels allows higher frequency",
         .pulse_widths = pulse_widths,
         .total_gpio   = 2,
         .dead_time    = 0,
-        .frequency    = 1000000
+        .time_period = 1000000/1000000
     };
 
     int ret = interleavedPWMCreate(&interleaved_pwm, &config);
