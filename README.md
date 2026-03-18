@@ -28,7 +28,7 @@ idf.py add-dependency "khiyamiftikhar/interleaved_pwm^0.1.5"
 Or in your project's `idf_component.yml`:
 ```yaml
 dependencies:
-  khiyamiftikhar/interleaved_pwm: "^0.1.8"
+  khiyamiftikhar/interleaved_pwm: "^0.1.9"
 ```
 
 ---
