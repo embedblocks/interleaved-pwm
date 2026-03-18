@@ -23,12 +23,12 @@ Instead of switching all channels simultaneously, this component distributes swi
 
 ## Using ESP-IDF Component Manager (Recommended)
 ```bash
-idf.py add-dependency "khiyamiftikhar/interleaved_pwm^0.1.5"
+idf.py add-dependency "khiyamiftikhar/interleaved_pwm^0.1.10"
 ```
 Or in your project's `idf_component.yml`:
 ```yaml
 dependencies:
-  khiyamiftikhar/interleaved_pwm: "^0.1.9"
+  khiyamiftikhar/interleaved_pwm: "^0.1.10"
 ```
 
 ---
