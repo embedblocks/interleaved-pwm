@@ -100,9 +100,6 @@ static void pwmStart(pwm_line_interface_t* self){
 
     ledc_set_duty_with_hpoint(LEDC_MODE,pwm_line->channel_number,pwm_line->duty,pwm_line->hpoint);
     ledc_update_duty(LEDC_MODE, pwm_line->channel_number);
-
-
-
 }
 
 
