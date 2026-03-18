@@ -958,3 +958,51 @@ TEST_CASE("resolution: fewer channels allows higher frequency",
     TEST_ASSERT_NOT_NULL(interleaved_pwm);
     interleavedPWMCreated = true;
 }
+
+
+TEST_CASE("start: first cycle clean after dirty shutdown",
+          "[interleaved_pwm][start]")
+{
+    static uint8_t  gpio_list[4]    = {5, 18, 22, 23};
+    static uint32_t pulse_widths[4] = {500, 500, 500, 500};
+
+    /* --- Cycle 1: start at MIN, ramp to MAX, leave registers dirty --- */
+    interleaved_pwm_config_t config = {
+        .gpio_no      = gpio_list,
+        .pulse_widths = pulse_widths,
+        .total_gpio   = 4,
+        .dead_time    = 1000,
+        .time_period  = 20000
+    };
+    TEST_ASSERT_EQUAL(ESP_OK, interleavedPWMCreate(&config, &interleaved_pwm));
+    TEST_ASSERT_EQUAL(ESP_OK, PWM_START(interleaved_pwm));
+
+    /* Dirty all registers with MAX duty */
+    for (uint8_t ch = 0; ch < 4; ch++)
+        TEST_ASSERT_EQUAL(ESP_OK, PWM_SET_WIDTH(interleaved_pwm, ch, 4000));
+
+    vTaskDelay(pdMS_TO_TICKS(100));   /* let 4000µs duty settle in hardware */
+
+    PWM_STOP(interleaved_pwm);
+    PWM_DESTROY(&interleaved_pwm);
+
+    /* --- Cycle 2: restart at MIN — this is where glitch appears --- */
+    /* Attach logic analyzer NOW — first few periods are the vulnerable window */
+    static uint32_t clean_widths[4] = {500, 500, 500, 500};
+    interleaved_pwm_config_t config2 = {
+        .gpio_no      = gpio_list,
+        .pulse_widths = clean_widths,
+        .total_gpio   = 4,
+        .dead_time    = 1000,
+        .time_period  = 20000
+    };
+    TEST_ASSERT_EQUAL(ESP_OK, interleavedPWMCreate(&config2, &interleaved_pwm));
+    TEST_ASSERT_EQUAL(ESP_OK, PWM_START(interleaved_pwm));
+
+    /* Hold long enough to capture first 10 periods on analyzer */
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    PWM_STOP(interleaved_pwm);
+    PWM_DESTROY(&interleaved_pwm);
+    interleaved_pwm = NULL;
+}
