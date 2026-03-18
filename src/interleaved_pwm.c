@@ -7,6 +7,7 @@ multiple gpio in esp32, so all those gpio will have same pwm signal.
 #include "esp_log.h"
 #include "esp_err.h"
 #include "pwm_line.h"
+#include <math.h>
 #include "interleaved_pwm.h"
 
 
@@ -33,6 +34,15 @@ static const char* TAG="interleaved pwm";
 
 
 //A makeshift  arrangment to create only one instance
+
+typedef struct {
+    uint32_t time_period;
+    void* lines;                //internally typcasted to  pwm_line_t. encapsulation
+    uint8_t total_lines;
+    uint32_t dead_time;             //microseconds. Dead Time between each pulse. The phase is determined by this
+    interleaved_pwm_interface_t interface;
+}interleaved_pwm_t;   
+
 static bool instance_created=false;
 
 //not used
@@ -136,6 +146,7 @@ static int stop(interleaved_pwm_interface_t* self){
     for(uint8_t i=0;i<total_lines;i++){
         lines[i].interface.pwmStop(&lines[i].interface);
     }
+   
 
     return 0;
 }
@@ -173,30 +184,57 @@ static int changeWidth(interleaved_pwm_interface_t* self,uint8_t channel_no,uint
 
 static int destroy(interleaved_pwm_interface_t* self)
 {
-    if(self==NULL)    
+    if (self == NULL)
         return ESP_FAIL;
+
     interleaved_pwm_t* prb = container_of(self, interleaved_pwm_t, interface);
 
-    pwm_line_t* lines = prb->lines;
-    if(lines==NULL)
+    ESP_LOGI(TAG,"interface address %p",self);
+
+    if (prb == NULL)
         return ESP_FAIL;
 
-    ESP_LOGI(TAG,"destroying prober, total lines %d",prb->total_lines);
+    pwm_line_t* lines = prb->lines;
 
-    for(uint8_t i=0;i<prb->total_lines;i++)
+    if (lines == NULL)
+        return ESP_FAIL;
+
+    ESP_LOGI(TAG, "destroying prober, total lines %d", prb->total_lines);
+
+    for (uint8_t i = 0; i < prb->total_lines; i++)
     {
         lines[i].interface.pwmDestroy(&lines[i].interface);
     }
 
+    
     free(lines);
     prb->lines = NULL;
 
-    instance_created=false;
+    /* free the main object */
+    free(prb);
+
+    instance_created = false;
 
     return 0;
 }
 
+/// @brief Free the user pointer using double pointer, and then call the normal destroy method
+///         Required after the malloc becaue user pointer is  not cleared by simple destroy
+/// @param pwm 
+/// @return 
+int destroyMaster(interleaved_pwm_interface_t** pwm)
+{
+    if (!pwm || !*pwm)
+        return ESP_ERR_INVALID_ARG;
 
+    interleaved_pwm_interface_t *obj = *pwm;
+
+    int ret = destroy(obj);
+
+    *pwm = NULL;   //  critical: prevent dangling pointer
+
+    return ret;
+}
 /**
  * @brief Compute optimal LEDC timer resolution for interleaved PWM
  *
@@ -253,102 +291,125 @@ static int compute_resolution(uint32_t freq, uint8_t channels, float threshold)
     int res_max = floor(log2((double)clk / freq));
     int res_min = ceil(log2((double)channels / threshold));
 
+    ESP_LOGI(TAG,"res max %d re_min %d",res_max,res_min);
+
     if (res_min > res_max)
         return -1;
 
     return res_max;
 }
 
-int interleavedPWMCreate(interleaved_pwm_t* self, interleaved_pwm_config_t* config)
+esp_err_t interleavedPWMCreate(
+    interleaved_pwm_config_t* config,
+    interleaved_pwm_interface_t** out_if)
 {
-    if ( self == NULL ||
-         config == NULL ||
-         config->gpio_no == NULL ||
-         config->pulse_widths == NULL ||
-         config->time_period == 0 ||
-         config->total_gpio == 0 )
+    if (config == NULL || out_if == NULL ||
+        config->gpio_no == NULL ||
+        config->pulse_widths == NULL ||
+        config->time_period == 0 ||
+        config->total_gpio == 0)
     {
-        return ERR_PROBE_MANAGER_INVALID_MEM;
+        return ESP_ERR_INVALID_ARG;
     }
 
-    
-    //Only once instance supported right now
-    if(instance_created==true)
-        return ESP_FAIL;
+    ESP_LOGI(TAG, "creating instance");
 
-    uint8_t total_gpio   = config->total_gpio;
-    uint32_t time_period = config->time_period;
-    uint32_t dead_time   = config->dead_time;
-    uint32_t* pulse_widths = config->pulse_widths;
-    uint8_t* gpio_no       = config->gpio_no;
+    if (instance_created == true) {
+        ESP_LOGW(TAG, "Already running, only one instance supported");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    uint8_t total_gpio       = config->total_gpio;
+    uint32_t time_period     = config->time_period;
+    uint32_t dead_time       = config->dead_time;
+    uint32_t* pulse_widths   = config->pulse_widths;
+    uint8_t* gpio_no         = config->gpio_no;
+
     int frequency = 1000000 / time_period;
 
-    if(config->total_gpio>pwmGetMaxChannels())
-        return ESP_FAIL;
+    if (total_gpio > pwmGetMaxChannels()) {
+        ESP_LOGE(TAG, "Exceeds max channels supported");
+        return ESP_ERR_NOT_SUPPORTED;
+    }
 
-    
+    int timer_resolution = compute_resolution(frequency, total_gpio, 0.05);
+    if (timer_resolution <= 0) {
+        ESP_LOGE(TAG, "Frequency too high for given slot width");
+        return ESP_ERR_INVALID_ARG;
+    }
 
-    int timer_resolution=compute_resolution(frequency,total_gpio, 0.05);    //5% a
+    if (timer_resolution > pwmGetMaxTimerReolution()) {
+        timer_resolution = pwmGetMaxTimerReolution();
+    }
 
-    if(timer_resolution<=0)
-        return ESP_FAIL;
-    
-    
-    if(timer_resolution>pwmGetMaxTimerReolution())
-        timer_resolution=pwmGetMaxTimerReolution();
-    
-
-    /* Check pulse widths against slot limits */
     int ret = pulseWidthCheck(pulse_widths, total_gpio, dead_time, time_period);
-    if(ret != 0)
-        return ret;
+    if (ret != 0) {
+        ESP_LOGE(TAG, "Pulse width + deadtime exceed slot width");
+        return ESP_ERR_INVALID_ARG;
+    }
 
-    //ret = frequencyCheck(frequency);
-    //if(ret != 0)
-      //  return ret;
+    int phase = phaseCalculate(total_gpio);
 
-    /* Calculate slot time for interleaving */
-    //uint32_t slot = time_period / total_gpio;
-    int phase= phaseCalculate(config->total_gpio);
+    interleaved_pwm_t* interleaved_pwm = malloc(sizeof(interleaved_pwm_t));
+    if (interleaved_pwm == NULL) {
+        ESP_LOGE(TAG, "Memory allocation failed (interleaved_pwm)");
+        return ESP_ERR_NO_MEM;
+    }
 
     pwm_line_t* pwm_line = malloc(sizeof(pwm_line_t) * total_gpio);
-    if(pwm_line == NULL)
+    if (pwm_line == NULL) {
+        ESP_LOGE(TAG, "Memory allocation failed (pwm_line)");
+        free(interleaved_pwm);
         return ESP_ERR_NO_MEM;
+    }
 
-    self->lines = pwm_line;
-    self->total_lines=total_gpio;
+    interleaved_pwm->lines = pwm_line;
+    interleaved_pwm->total_lines = total_gpio;
 
     pwm_config_t line_config;
     uint32_t current_phase = 0;
 
-    for(uint8_t i = 0; i < total_gpio; i++)
+    for (uint8_t i = 0; i < total_gpio; i++)
     {
-        line_config.pulse_width    = pulse_widths[i];
-        line_config.channel_number = i;
-        line_config.dead_time      = 0;         //Not used in new design, bcz becomes meaningless at steady state, all get a deadtime offset
-        line_config.gpio           = gpio_no[i];
-        line_config.phase          = current_phase;
-        line_config.time_period    = time_period;
+        line_config.pulse_width     = pulse_widths[i];
+        line_config.channel_number  = i;
+        line_config.dead_time       = 0;
+        line_config.gpio            = gpio_no[i];
+        line_config.phase           = current_phase;
+        line_config.time_period     = time_period;
+        line_config.timer_resolution= timer_resolution;
 
-        ESP_ERROR_CHECK(pwmCreate(&pwm_line[i], &line_config));
+        esp_err_t err = pwmCreate(&pwm_line[i], &line_config);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "pwmCreate failed at channel %d", i);
+
+            // cleanup already created channels
+            for (uint8_t j = 0; j < i; j++) {
+                pwm_line[j].interface.pwmDestroy(&pwm_line[j].interface);
+            }
+
+            free(pwm_line);
+            free(interleaved_pwm);
+            return err;
+        }
 
         current_phase += phase;
-
         ESP_LOGI(TAG, "creating channel %d phase %lu", i, current_phase);
     }
 
-    self->interface.start   = start;
-    self->interface.stop    = stop;
-    self->interface.destroy = destroy;
-    self->interface.changePulseWidth=changeWidth;
+    interleaved_pwm->interface.start            = start;
+    interleaved_pwm->interface.stop             = stop;
+    interleaved_pwm->interface.destroy          = destroyMaster;
+    interleaved_pwm->interface.changePulseWidth = changeWidth;
 
-    self->time_period = time_period;
-    self->dead_time=dead_time;
+    interleaved_pwm->time_period = time_period;
+    interleaved_pwm->dead_time   = dead_time;
 
+    instance_created = true;
 
-    instance_created=true;
+    *out_if = &interleaved_pwm->interface;
 
     ESP_LOGI(TAG, "interleaved PWM created");
 
-    return 0;
+    return ESP_OK;
 }
