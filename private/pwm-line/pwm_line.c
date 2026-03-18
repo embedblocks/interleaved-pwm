@@ -35,9 +35,10 @@ static const char* TAG="pwm line";
 #define LEDC_DUTY_RES           LEDC_TIMER_13_BIT // Set duty resolution to 13 bits
 #define LEDC_FREQUENCY          (100) // Frequency in Hertz. Set frequency at 100Hz so 10 ms
 
+#define PWM_MAX_CHANNELS        (LEDC_CHANNEL_MAX+1)
 
 
-
+static bool timer_init_done=false;   //so that get initialized only once
 
 static int percentage_to_ticks(int percentage,int total_ticks){
 
@@ -125,6 +126,7 @@ static void pwmDestroy(pwm_line_interface_t* self)
     ledc_stop(LEDC_MODE, pwm_line->channel_number, 0);
 
     gpio_reset_pin(pwm_line->gpio_number);
+    timer_init_done=true;// not good, will clear on only one line deletion
 
 }
 
@@ -144,15 +146,19 @@ int pwmCreate(pwm_line_t* self,pwm_config_t*  config){
 
     uint32_t frequency=1000000/time_period;     //1M/(time period in microseconds)
 
-    ledc_timer_config_t ledc_timer = {
-        .speed_mode       = LEDC_MODE,
-        .duty_resolution  = LEDC_DUTY_RES,
-        .timer_num        = LEDC_TIMER,
-        .freq_hz          = frequency,
-        .clk_cfg          = LEDC_AUTO_CLK
-    };
-    if(ledc_timer_config(&ledc_timer)!=0)
-        return -1;
+    if(timer_init_done==false){
+        ledc_timer_config_t ledc_timer = {
+            .speed_mode       = LEDC_MODE,
+            .duty_resolution  = config->timer_resolution,
+            .timer_num        = LEDC_TIMER,
+            .freq_hz          = frequency,
+            .clk_cfg          = LEDC_AUTO_CLK
+        };
+        if(ledc_timer_config(&ledc_timer)!=0)
+            return -1;
+
+        timer_init_done=true;
+    }
 
     uint32_t duty_ticks=pulseWidthToTicks(config->pulse_width,time_period,LEDC_DUTY_RES);
     int lag=pwmLagTicksCalculate(config->phase,dead_time,time_period,LEDC_DUTY_RES);
@@ -191,3 +197,10 @@ int pwmCreate(pwm_line_t* self,pwm_config_t*  config){
 
 
 
+int pwmGetMaxChannels(){
+    return PWM_MAX_CHANNELS;
+}
+
+int pwmGetMaxTimerReolution(){
+ return LEDC_DUTY_RES;   
+}
