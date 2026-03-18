@@ -123,7 +123,7 @@ static int start(interleaved_pwm_interface_t* self){
         return ESP_FAIL;
     uint8_t total_lines=prb->total_lines;
 
-    for(uint8_t i=0;i<total_lines;i++){
+    for(int8_t i=(total_lines-1);i>=0;i--){
         lines[i].interface.pwmStart(&lines[i].interface);
     }
 
