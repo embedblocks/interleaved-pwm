@@ -141,6 +141,25 @@ PWM_DESTROY(&pwm);
 - No dynamic channel reallocation after creation
 
 ---
+## Examples
+
+The component includes two examples demonstrating typical usage patterns.
+
+| Example | Description |
+|---------|-------------|
+| `simple` | Minimal setup of a multi-channel interleaved PWM instance. Shows basic creation, start, and steady-state operation. |
+| `ramp` | Demonstrates runtime pulse width updates using a ramp pattern across channels. Useful for observing dynamic behaviour and transient response. |
+
+---
+
+### Running an example
+
+1. Navigate to the example directory:
+
+```ESP-IDF Terminal
+cd examples/simple
+idf.py build flash monitor
+
 
 # License
 MIT License
