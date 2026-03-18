@@ -118,8 +118,8 @@ void app_main(void)
         .time_period  = 20000
     };
 
-    interleaved_pwm_t pwm;
-    int ret = interleavedPWMCreate(&pwm, &invalid_config);
+    interleaved_pwm_interface_t* pwm;
+    int ret = interleavedPWMCreate(&invalid_config,&pwm);
 
     if (ret != 0)
     {
@@ -154,7 +154,7 @@ void app_main(void)
         .time_period  = 20000
     };
 
-    ret = interleavedPWMCreate(&pwm, &valid_config);
+    ret = interleavedPWMCreate(&valid_config,&pwm);
     if (ret != 0)
     {
         ESP_LOGE(TAG, "Creation failed unexpectedly (ret=%d)", ret);
@@ -167,7 +167,7 @@ void app_main(void)
     /* ---------------------------------------------------------- */
 
     ESP_LOGI(TAG, "--- Step 3: Start ---");
-    ret = PWM_START(&pwm);
+    ret = PWM_START(pwm);
     if (ret != 0)
     {
         ESP_LOGE(TAG, "PWM_START failed (ret=%d)", ret);
@@ -184,7 +184,7 @@ void app_main(void)
     /* ---------------------------------------------------------- */
 
     ESP_LOGI(TAG, "--- Step 4: Stop and destroy ---");
-    PWM_STOP(&pwm);
+    PWM_STOP(pwm);
     ESP_LOGI(TAG, "PWM stopped -- all outputs idle");
 
     PWM_DESTROY(&pwm);

@@ -25,6 +25,7 @@
  */
 
 #include <stdint.h>
+#include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -52,7 +53,7 @@ static const char *TAG = "pwm_example";
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-static esp_err_t converter_init(interleaved_pwm_t *pwm,
+static esp_err_t converter_init(interleaved_pwm_interface_t **pwm,
                                 uint8_t           *gpio_list,
                                 uint32_t           initial_width_us)
 {
@@ -69,14 +70,14 @@ static esp_err_t converter_init(interleaved_pwm_t *pwm,
         .time_period  = TIME_PERIOD_US
     };
 
-    int ret = interleavedPWMCreate(pwm, &config);
-    if (ret != 0)
+    esp_err_t ret = interleavedPWMCreate(&config,pwm);
+    if (ret!=0)
     {
-        ESP_LOGE(TAG, "interleavedPWMCreate failed (%d)", ret);
+        ESP_LOGE(TAG, "interleavedPWMCreate failed");
         return ESP_FAIL;
     }
 
-    ret = PWM_START(pwm);
+    ret = PWM_START(*pwm);
     if (ret != 0)
     {
         ESP_LOGE(TAG, "PWM_START failed (%d)", ret);
@@ -90,7 +91,7 @@ static esp_err_t converter_init(interleaved_pwm_t *pwm,
 /*
  * Ramp all channels up and down
  */
-static void ramp(interleaved_pwm_t *pwm)
+static void ramp(interleaved_pwm_interface_t *pwm)
 {
     uint32_t width = RAMP_MIN_US;
     int direction = 1;
@@ -141,12 +142,12 @@ static void ramp(interleaved_pwm_t *pwm)
     }
 }
 
-static void converter_shutdown(interleaved_pwm_t *pwm)
+static void converter_shutdown(interleaved_pwm_interface_t *pwm)
 {
     ESP_LOGI(TAG, "Shutting down PWM");
 
     PWM_STOP(pwm);
-    PWM_DESTROY(pwm);
+    PWM_DESTROY(&pwm);
 
     ESP_LOGI(TAG, "PWM stopped and resources released");
 }
@@ -161,7 +162,7 @@ void app_main(void)
 
     static uint8_t gpio[NUM_CHANNELS] = {5, 18, 22, 23};
 
-    interleaved_pwm_t pwm;
+    interleaved_pwm_interface_t* pwm;
 
     int cycle = 0;
 
@@ -176,9 +177,9 @@ void app_main(void)
             return;
         }
 
-        ramp(&pwm);
+        ramp(pwm);
 
-        converter_shutdown(&pwm);
+        converter_shutdown(pwm);
 
         ESP_LOGI(TAG, "Idle for %u ms", IDLE_MS);
         vTaskDelay(pdMS_TO_TICKS(IDLE_MS));
