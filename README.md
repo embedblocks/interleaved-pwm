@@ -198,7 +198,7 @@ PWM_DESTROY(&pwm);
 
 ---
 
-![Start Problem](https://raw.githubusercontent.com/khiyamiftikhar/interleaved-pwm/ledc-publish/docs/1st-cycle.png)
+![Start Problem](https://raw.githubusercontent.com/khiyamiftikhar/v0.1.5-ledc/ledc-publish/docs/1st-cycle.png)
 
 ## Limitations
 
