@@ -25,7 +25,7 @@
 static const char *TAG = "test_interleaved_pwm";
 
 /* Shared handle used across tests */
-static interleaved_pwm_t interleaved_pwm;
+static interleaved_pwm_interface_t* interleaved_pwm;
 static bool interleavedPWMCreated = false;
 
 /* ------------------------------------------------------------------ */
@@ -43,6 +43,8 @@ void tearDown(void)
     {
         ESP_LOGI(TAG, "Tearing down interleaved_pwm");
         PWM_DESTROY(&interleaved_pwm);
+        //ESP_LOGI(TAG,"interface address in tear down %p",interleaved_pwm);
+        //interleaved_pwm->destroy(&interleaved_pwm);
         interleavedPWMCreated = false;
     }
 }
@@ -70,9 +72,9 @@ static void create_default_interleaved_pwm(void)
         .time_period = 10000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    ESP_LOGI(TAG, "create_default return %d", ret);
-    TEST_ASSERT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    ESP_LOGI(TAG, "create reult %d", ret);
+    TEST_ASSERT_NOT_NULL(interleaved_pwm);
     interleavedPWMCreated = true;
 }
 
@@ -95,9 +97,9 @@ static void create_4ch_interleaved_pwm(void)
         .time_period = 20000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    ESP_LOGI(TAG, "create_4ch return %d", ret);
-    TEST_ASSERT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    ESP_LOGI(TAG, "create_4ch result %d", ret);
+    TEST_ASSERT_NOT_NULL(interleaved_pwm);
     interleavedPWMCreated = true;
 }
 
@@ -113,29 +115,13 @@ TEST_CASE("create: succeeds with valid 2-channel configuration",
 
 /* --- NULL / missing arguments ------------------------------------ */
 
-TEST_CASE("create: fails when handle pointer is NULL",
-          "[interleaved_pwm][create]")
-{
-    static uint8_t  gpio_list[2]    = {5, 18};
-    static uint32_t pulse_widths[2] = {2000, 2000};
 
-    interleaved_pwm_config_t config = {
-        .gpio_no     = gpio_list,
-        .pulse_widths = pulse_widths,
-        .total_gpio  = 2,
-        .dead_time   = 1000,
-        .time_period = 10000
-    };
-
-    int ret = interleavedPWMCreate(NULL, &config);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
-}
 
 TEST_CASE("create: fails when config pointer is NULL",
           "[interleaved_pwm][create]")
 {
-    int ret = interleavedPWMCreate(&interleaved_pwm, NULL);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(NULL,&interleaved_pwm);
+    TEST_ASSERT_NULL(interleaved_pwm);
 }
 
 TEST_CASE("create: fails when gpio_no is NULL",
@@ -151,8 +137,8 @@ TEST_CASE("create: fails when gpio_no is NULL",
         .time_period = 10000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NULL(interleaved_pwm);
 }
 
 TEST_CASE("create: fails when pulse_widths is NULL",
@@ -168,8 +154,8 @@ TEST_CASE("create: fails when pulse_widths is NULL",
         .time_period = 10000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NULL(interleaved_pwm);
 }
 
 /* --- total_gpio edge cases --------------------------------------- */
@@ -188,8 +174,8 @@ TEST_CASE("create: fails when total_gpio is zero",
         .time_period = 10000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NULL(interleaved_pwm);
 }
 
 TEST_CASE("create: single gpio channel accepted or rejected per spec",
@@ -211,13 +197,13 @@ TEST_CASE("create: single gpio channel accepted or rejected per spec",
         .time_period = 10000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
 
     /* CHOOSE ONE and delete the other: */
-    TEST_ASSERT_EQUAL(0, ret);      /* valid: single-channel allowed   */
-    /* TEST_ASSERT_NOT_EQUAL(0, ret); */  /* invalid: must have >= 2 channels */
+    TEST_ASSERT_NOT_NULL(interleaved_pwm);      /* valid: single-channel allowed   */
+    /* TEST_ASSERT_NULL(interleaved_pwm); */  /* invalid: must have >= 2 channels */
 
-    if (ret == 0) { interleavedPWMCreated = true; }
+    if(interleaved_pwm!=NULL){ interleavedPWMCreated = true; }
 }
 
 /* --- time_period edge cases ------------------------------------- */
@@ -236,8 +222,8 @@ TEST_CASE("create: fails when time_period is zero",
         .time_period = 0            /* <-- invalid */
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NULL(interleaved_pwm);
 }
 
 /* --- dead_time edge cases --------------------------------------- */
@@ -261,8 +247,8 @@ TEST_CASE("create: zero dead_time is accepted",
         .time_period = 10000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NOT_NULL(interleaved_pwm);
     interleavedPWMCreated = true;
 }
 
@@ -291,8 +277,8 @@ TEST_CASE("create: fails when pulse_width plus dead_time exceeds channel slot",
         .time_period = 10000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NULL(interleaved_pwm);
 }
 
 /*
@@ -315,11 +301,11 @@ TEST_CASE("create: pulse_width plus dead_time equal to slot is boundary conditio
         .time_period = 10000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
 
     /* CHOOSE ONE: strict-less → NOT_EQUAL; less-or-equal → EQUAL */
-    TEST_ASSERT_EQUAL(0, ret);
-    if (ret == 0) { interleavedPWMCreated = true; }
+    TEST_ASSERT_NOT_NULL(interleaved_pwm);
+    if(interleaved_pwm!=NULL){ interleavedPWMCreated = true; }
 }
 
 /*
@@ -339,8 +325,8 @@ TEST_CASE("create: fails when any single channel pulse_width exceeds its slot",
         .time_period = 10000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NULL(interleaved_pwm);
 }
 
 /* ================================================================== */
@@ -351,17 +337,17 @@ TEST_CASE("lifecycle: start returns success",
           "[interleaved_pwm][lifecycle]")
 {
     create_default_interleaved_pwm();
-    int ret = PWM_START(&interleaved_pwm);
-    TEST_ASSERT_EQUAL(0, ret);
+    int ret = PWM_START(interleaved_pwm);
+    TEST_ASSERT_EQUAL(0,ret);
 }
 
 TEST_CASE("lifecycle: stop after start returns success",
           "[interleaved_pwm][lifecycle]")
 {
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
-    int ret = PWM_STOP(&interleaved_pwm);
-    TEST_ASSERT_EQUAL(0, ret);
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
+    int ret = PWM_STOP(interleaved_pwm);
+    TEST_ASSERT_EQUAL(0,ret);
 }
 
 TEST_CASE("lifecycle: destroy returns success and releases resources",
@@ -369,7 +355,7 @@ TEST_CASE("lifecycle: destroy returns success and releases resources",
 {
     create_default_interleaved_pwm();
     int ret = PWM_DESTROY(&interleaved_pwm);
-    TEST_ASSERT_EQUAL(0, ret);
+    TEST_ASSERT_EQUAL(0,ret);
     interleavedPWMCreated = false;   /* prevent double-destroy in tearDown */
 }
 
@@ -377,8 +363,8 @@ TEST_CASE("lifecycle: full start-stop-destroy sequence succeeds",
           "[interleaved_pwm][lifecycle]")
 {
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
-    TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_STOP(interleaved_pwm));
     TEST_ASSERT_EQUAL(0, PWM_DESTROY(&interleaved_pwm));
     interleavedPWMCreated = false;
 }
@@ -391,8 +377,8 @@ TEST_CASE("lifecycle: start-stop cycle can be repeated",
     for (int i = 0; i < 5; i++)
     {
         ESP_LOGI(TAG, "Start/stop cycle %d", i + 1);
-        TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
-        TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+        TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
+        TEST_ASSERT_EQUAL(0, PWM_STOP(interleaved_pwm));
     }
 }
 
@@ -411,49 +397,49 @@ TEST_CASE("state: stop without prior start is defined behaviour",
      * Pick one and document the contract.
      */
     create_default_interleaved_pwm();
-    int ret = PWM_STOP(&interleaved_pwm);
+    int ret = PWM_STOP(interleaved_pwm);
 
     /* CHOOSE ONE: */
-    TEST_ASSERT_EQUAL(0, ret);          /* tolerant: no-op is fine  */
-    /* TEST_ASSERT_NOT_EQUAL(0, ret); */ /* strict:  must start first */
+    TEST_ASSERT_EQUAL(0,ret);          /* tolerant: no-op is fine  */
+    /* TEST_ASSERT_NULL(interleaved_pwm); */ /* strict:  must start first */
 }
 
 TEST_CASE("state: calling start twice is idempotent or returns error",
           "[interleaved_pwm][state]")
 {
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
 
-    int ret = PWM_START(&interleaved_pwm);
+    int ret = PWM_START(interleaved_pwm);
 
     /* CHOOSE ONE: */
-    TEST_ASSERT_EQUAL(0, ret);          /* tolerant: second start is a no-op */
-    /* TEST_ASSERT_NOT_EQUAL(0, ret); */ /* strict:  must stop before restart  */
+    TEST_ASSERT_EQUAL(0,ret);             /* tolerant: second start is a no-op */
+    /* TEST_ASSERT_NULL(interleaved_pwm); */ /* strict:  must stop before restart  */
 }
 
 TEST_CASE("state: calling stop twice is idempotent or returns error",
           "[interleaved_pwm][state]")
 {
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
-    TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_STOP(interleaved_pwm));
 
-    int ret = PWM_STOP(&interleaved_pwm);
+    int ret = PWM_STOP(interleaved_pwm);
 
     /* CHOOSE ONE: */
-    TEST_ASSERT_EQUAL(0, ret);
-    /* TEST_ASSERT_NOT_EQUAL(0, ret); */
+    TEST_ASSERT_EQUAL(0,ret);          /* tolerant: no-op is fine  */
+    /* TEST_ASSERT_NULL(interleaved_pwm); */
 }
 
 TEST_CASE("state: destroy while running stops and cleans up safely",
           "[interleaved_pwm][state]")
 {
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
 
     /* Must not crash or leak even if stop was never called */
     int ret = PWM_DESTROY(&interleaved_pwm);
-    TEST_ASSERT_EQUAL(0, ret);
+    TEST_ASSERT_EQUAL(0,ret);
     interleavedPWMCreated = false;
 }
 
@@ -465,8 +451,8 @@ TEST_CASE("state: operations after destroy return error",
     interleavedPWMCreated = false;
 
     /* All interface calls on a destroyed handle must return an error */
-    TEST_ASSERT_NOT_EQUAL(0, PWM_START(&interleaved_pwm));
-    TEST_ASSERT_NOT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+    TEST_ASSERT_NOT_EQUAL(0, PWM_START(interleaved_pwm));
+    TEST_ASSERT_NOT_EQUAL(0, PWM_STOP(interleaved_pwm));
 }
 
 /* ================================================================== */
@@ -483,8 +469,8 @@ TEST_CASE("multi: 4-channel start and stop succeeds",
           "[interleaved_pwm][multi]")
 {
     create_4ch_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
-    TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_STOP(interleaved_pwm));
 }
 
 TEST_CASE("multi: 4-channel with mismatched pulse widths succeeds",
@@ -507,8 +493,8 @@ TEST_CASE("multi: 4-channel with mismatched pulse widths succeeds",
         .time_period = 20000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NOT_NULL(interleaved_pwm);
     interleavedPWMCreated = true;
 }
 
@@ -529,8 +515,8 @@ TEST_CASE("multi: 4-channel fails when one channel pulse_width exceeds its slot"
         .time_period = 20000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NULL(interleaved_pwm);
 }
 
 /* ================================================================== */
@@ -542,15 +528,15 @@ TEST_CASE("recreate: handle can be reused after destroy",
 {
     /* First instance */
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
-    TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_STOP(interleaved_pwm));
     TEST_ASSERT_EQUAL(0, PWM_DESTROY(&interleaved_pwm));
     interleavedPWMCreated = false;
 
     /* Re-create on the same handle — must not retain stale state */
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
-    TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_STOP(interleaved_pwm));
 }
 
 /* ================================================================== */
@@ -572,10 +558,10 @@ TEST_CASE("manual: 2-channel waveform observable on oscilloscope",
      *   Frequency: 100 Hz (10 000 µs period)
      */
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
     ESP_LOGI(TAG, "2-ch waveform running for 3 s — observe GPIOs 5 and 18");
     vTaskDelay(pdMS_TO_TICKS(3000));
-    TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_STOP(interleaved_pwm));
 }
 
 TEST_CASE("manual: 4-channel waveform observable on oscilloscope",
@@ -588,10 +574,10 @@ TEST_CASE("manual: 4-channel waveform observable on oscilloscope",
      *   Period: 20 000 µs (50 Hz)
      */
     create_4ch_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
     ESP_LOGI(TAG, "4-ch waveform running for 3 s — observe GPIOs 5, 18, 22, 23");
     vTaskDelay(pdMS_TO_TICKS(3000));
-    TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_STOP(interleaved_pwm));
 }
 
 TEST_CASE("manual: waveform stops cleanly — no residual output after stop",
@@ -602,9 +588,9 @@ TEST_CASE("manual: waveform stops cleanly — no residual output after stop",
      * idle level). Verify with scope that no pulses appear after stop.
      */
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
     vTaskDelay(pdMS_TO_TICKS(1000));
-    TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_STOP(interleaved_pwm));
     ESP_LOGI(TAG, "Outputs stopped — verify GPIOs are idle for 2 s");
     vTaskDelay(pdMS_TO_TICKS(2000));
 }
@@ -627,42 +613,42 @@ TEST_CASE("changeWidth: succeeds with valid width on channel 0",
 {
     create_default_interleaved_pwm();
     
-    int ret = PWM_SET_WIDTH(&interleaved_pwm, 0, 3000);
-    TEST_ASSERT_EQUAL(0, ret);
+    int ret = PWM_SET_WIDTH(interleaved_pwm, 0, 3000);
+    TEST_ASSERT_EQUAL(0,ret);
 }
 
 TEST_CASE("changeWidth: succeeds with valid width on channel 1",
           "[interleaved_pwm][changeWidth]")
 {
     create_default_interleaved_pwm();
-    int ret = PWM_SET_WIDTH(&interleaved_pwm, 1, 1500);
-    TEST_ASSERT_EQUAL(0, ret);
+    int ret = PWM_SET_WIDTH(interleaved_pwm, 1, 1500);
+    TEST_ASSERT_EQUAL(0,ret);
 }
 
 TEST_CASE("changeWidth: succeeds while PWM is running",
           "[interleaved_pwm][changeWidth]")
 {
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
-    int ret = PWM_SET_WIDTH(&interleaved_pwm, 0, 3000);
-    TEST_ASSERT_EQUAL(0, ret);
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
+    int ret = PWM_SET_WIDTH(interleaved_pwm, 0, 3000);
+    TEST_ASSERT_EQUAL(0,ret);
 }
 
 TEST_CASE("changeWidth: each channel can be changed independently",
           "[interleaved_pwm][changeWidth]")
 {
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(&interleaved_pwm, 0, 1000));
-    TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(&interleaved_pwm, 1, 3500));
+    TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(interleaved_pwm, 0, 1000));
+    TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(interleaved_pwm, 1, 3500));
 }
 
 TEST_CASE("changeWidth: can be called multiple times on same channel",
           "[interleaved_pwm][changeWidth]")
 {
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(&interleaved_pwm, 0, 1000));
-    TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(&interleaved_pwm, 0, 2000));
-    TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(&interleaved_pwm, 0, 3000));
+    TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(interleaved_pwm, 0, 1000));
+    TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(interleaved_pwm, 0, 2000));
+    TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(interleaved_pwm, 0, 3000));
 }
 
 /* --- Boundary conditions ----------------------------------------- */
@@ -672,8 +658,8 @@ TEST_CASE("changeWidth: pulse_width of 1 is minimum valid value",
 {
     /* slot=5000, dead_time=1000 → 1+1000=1001 < 5000 ✓ */
     create_default_interleaved_pwm();
-    int ret = PWM_SET_WIDTH(&interleaved_pwm, 0, 1);
-    TEST_ASSERT_EQUAL(0, ret);
+    int ret = PWM_SET_WIDTH(interleaved_pwm, 0, 1);
+    TEST_ASSERT_EQUAL(0,ret);
 }
 
 TEST_CASE("changeWidth: pulse_width of 0 is accepted or rejected per spec",
@@ -685,9 +671,9 @@ TEST_CASE("changeWidth: pulse_width of 0 is accepted or rejected per spec",
      * CHOOSE ONE:
      */
     create_default_interleaved_pwm();
-    int ret = PWM_SET_WIDTH(&interleaved_pwm, 0, 0);
-    TEST_ASSERT_EQUAL(0, ret);           /* tolerant: 0 = channel off */
-    /* TEST_ASSERT_NOT_EQUAL(0, ret); */ /* strict:   must be > 0     */
+    int ret = PWM_SET_WIDTH(interleaved_pwm, 0, 0);
+    TEST_ASSERT_EQUAL(0,ret);           /* tolerant: 0 = channel off */
+    /* TEST_ASSERT_NULL(interleaved_pwm); */ /* strict:   must be > 0     */
 }
 
 TEST_CASE("changeWidth: pulse_width exactly at slot boundary is boundary condition",
@@ -698,9 +684,9 @@ TEST_CASE("changeWidth: pulse_width exactly at slot boundary is boundary conditi
      * CHOOSE ONE to match your constraint (< or <=):
      */
     create_default_interleaved_pwm();
-    int ret = PWM_SET_WIDTH(&interleaved_pwm, 0, 4000);
-    TEST_ASSERT_EQUAL(0, ret);           /* <= slot-dead_time allowed */
-    /* TEST_ASSERT_NOT_EQUAL(0, ret); */ /* < slot-dead_time only     */
+    int ret = PWM_SET_WIDTH(interleaved_pwm, 0, 4000);
+    TEST_ASSERT_EQUAL(0,ret);           /* <= slot-dead_time allowed */
+    /* TEST_ASSERT_NULL(interleaved_pwm); */ /* < slot-dead_time only     */
 }
 
 /* --- Rejection cases --------------------------------------------- */
@@ -710,8 +696,8 @@ TEST_CASE("changeWidth: fails when pulse_width plus dead_time exceeds slot",
 {
     /* slot=5000, dead_time=1000 → 4500+1000=5500 > 5000 → FAIL */
     create_default_interleaved_pwm();
-    int ret = PWM_SET_WIDTH(&interleaved_pwm, 0, 4500);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    int ret = PWM_SET_WIDTH(interleaved_pwm, 0, 4500);
+    TEST_ASSERT_NOT_EQUAL(0,ret);
 }
 
 TEST_CASE("changeWidth: fails when pulse_width equals time_period",
@@ -719,8 +705,8 @@ TEST_CASE("changeWidth: fails when pulse_width equals time_period",
 {
     /* 10000 >> slot of 5000, must clearly fail */
     create_default_interleaved_pwm();
-    int ret = PWM_SET_WIDTH(&interleaved_pwm, 0, 10000);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    int ret = PWM_SET_WIDTH(interleaved_pwm, 0, 10000);
+    TEST_ASSERT_NOT_EQUAL(0,ret);
 }
 
 TEST_CASE("changeWidth: rejected width does not alter previous valid width",
@@ -732,12 +718,12 @@ TEST_CASE("changeWidth: rejected width does not alter previous valid width",
      * no internal state corruption.
      */
     create_default_interleaved_pwm();
-    PWM_SET_WIDTH(&interleaved_pwm, 0, 2000);
-    TEST_ASSERT_EQUAL(0,    PWM_SET_WIDTH(&interleaved_pwm, 0, 2000));
-    TEST_ASSERT_NOT_EQUAL(0,PWM_SET_WIDTH(&interleaved_pwm, 0, 9999));
+    PWM_SET_WIDTH(interleaved_pwm, 0, 2000);
+    TEST_ASSERT_EQUAL(0,    PWM_SET_WIDTH(interleaved_pwm, 0, 2000));
+    TEST_ASSERT_NOT_EQUAL(0,PWM_SET_WIDTH(interleaved_pwm, 0, 9999));
     /* Component must still be usable */
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
-    TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_STOP(interleaved_pwm));
 }
 
 /* --- Invalid arguments ------------------------------------------- */
@@ -747,8 +733,8 @@ TEST_CASE("changeWidth: fails when self is NULL",
 {
     create_default_interleaved_pwm();
     
-    int ret = interleaved_pwm.interface.changePulseWidth(NULL, 0, 2000);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    int ret = interleaved_pwm->changePulseWidth(NULL, 0, 2000);
+    TEST_ASSERT_NOT_EQUAL(0,ret);
 }
 
 TEST_CASE("changeWidth: fails when channel_no is out of range",
@@ -756,8 +742,8 @@ TEST_CASE("changeWidth: fails when channel_no is out of range",
 {
     /* total_gpio=2, so valid channels are 0 and 1 only */
     create_default_interleaved_pwm();
-    int ret = PWM_SET_WIDTH(&interleaved_pwm, 2, 2000);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    int ret = PWM_SET_WIDTH(interleaved_pwm, 2, 2000);
+    TEST_ASSERT_NOT_EQUAL(0,ret);
 }
 
 /* --- Manual / observable ----------------------------------------- */
@@ -771,17 +757,17 @@ TEST_CASE("manual: changeWidth duty change visible on oscilloscope",
      * No glitches or missing pulses should appear between steps.
      */
     create_default_interleaved_pwm();
-    TEST_ASSERT_EQUAL(0, PWM_START(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_START(interleaved_pwm));
 
     uint32_t widths[] = {1000, 2000, 4000};
     for (int i = 0; i < 3; i++)
     {
         ESP_LOGI(TAG, "changeWidth → %lu µs", widths[i]);
-        TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(&interleaved_pwm, 0, widths[i]));
+        TEST_ASSERT_EQUAL(0, PWM_SET_WIDTH(interleaved_pwm, 0, widths[i]));
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
-    TEST_ASSERT_EQUAL(0, PWM_STOP(&interleaved_pwm));
+    TEST_ASSERT_EQUAL(0, PWM_STOP(interleaved_pwm));
 }
 
 
@@ -812,8 +798,8 @@ TEST_CASE("resolution: low frequency 50 Hz is accepted",
         .time_period    = 1000000/50            //Timer period in microseconds
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NOT_NULL(interleaved_pwm);
     interleavedPWMCreated = true;
 }
 
@@ -828,12 +814,12 @@ TEST_CASE("resolution: mid frequency 1 kHz is accepted",
         .gpio_no      = gpio_list,
         .pulse_widths = pulse_widths,
         .total_gpio   = 4,
-        .dead_time    = 100,
-        .time_period    = 1000000/1000
+        .dead_time    = 45,
+        .time_period    = 1000000/1000      //time period in us
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NOT_NULL(interleaved_pwm);
     interleavedPWMCreated = true;
 }
 
@@ -842,7 +828,7 @@ TEST_CASE("resolution: 100 kHz is accepted",
 {
     /* res_max = floor(log2(80000000/100000)) = floor(9.6) = 9 > 7 */
     static uint8_t  gpio_list[4]    = {5, 18, 22, 23};
-    static uint32_t pulse_widths[4] = {2, 2, 2, 2};
+    static uint32_t pulse_widths[4] = {1, 1, 1, 1};
 
     interleaved_pwm_config_t config = {
         .gpio_no      = gpio_list,
@@ -852,8 +838,8 @@ TEST_CASE("resolution: 100 kHz is accepted",
         .time_period = 1000000/100000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NOT_NULL(interleaved_pwm);
     interleavedPWMCreated = true;
 }
 
@@ -878,8 +864,8 @@ TEST_CASE("resolution: 625 kHz is the boundary frequency for 4 channels",
         .time_period = 1000000/625000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NOT_NULL(interleaved_pwm);
     interleavedPWMCreated = true;
 }
 
@@ -902,8 +888,8 @@ TEST_CASE("resolution: one step above boundary 626 kHz is rejected",
         .time_period = 1000000/626000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NULL(interleaved_pwm);
 }
 
 /* --- Rejection cases --------------------------------------------- */
@@ -923,8 +909,8 @@ TEST_CASE("resolution: 1 MHz is rejected for 4 channels",
         .time_period = 1000000/1000000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NULL(interleaved_pwm);
 }
 
 TEST_CASE("resolution: time_period of zero is rejected",
@@ -942,8 +928,8 @@ TEST_CASE("resolution: time_period of zero is rejected",
         .time_period = 0
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_NOT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NULL(interleaved_pwm);
 }
 
 /* --- Channel count affects boundary ------------------------------ */
@@ -968,7 +954,7 @@ TEST_CASE("resolution: fewer channels allows higher frequency",
         .time_period = 1000000/1000000
     };
 
-    int ret = interleavedPWMCreate(&interleaved_pwm, &config);
-    TEST_ASSERT_EQUAL(0, ret);
+    esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
+    TEST_ASSERT_NOT_NULL(interleaved_pwm);
     interleavedPWMCreated = true;
 }
