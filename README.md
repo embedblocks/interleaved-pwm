@@ -1,6 +1,6 @@
 # interleaved_pwm
 
-An ESP-IDF component for multi-phase interleaved PWM generation using the LEDC peripheral. Designed for applications such as multi-phase DC-DC converters where switching events must be distributed evenly across the period to minimise input current ripple.
+An ESP-IDF component for multi-phase interleaved PWM generation using the LEDC peripheral. Distributes evenly across the period.
 
 ---
 
@@ -198,9 +198,13 @@ PWM_DESTROY(&pwm);
 
 ---
 
+![Start Problem](https://raw.githubusercontent.com/khiyamiftikhar/interleaved-pwm/ledc-publish/docs/1st-cycle.png)
+
 ## Limitations
 
+- All channels may not be correct on 1-2 cycle after start because of LEDC limitation
 - Single instance per application in the current release
 - Timer 0 is always used — not configurable
 - 13-bit resolution cap (sufficient for all supported chips)
 - No dynamic channel reallocation after creation
+
