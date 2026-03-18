@@ -1,0 +1,5 @@
+version: "0.1.4-ledc"
+description: Interleaved PWM using LEDC
+url: https://github.com/khiyamiftikhar/interleaved-pwm
+dependencies:
+  idf: ">=5.5"
