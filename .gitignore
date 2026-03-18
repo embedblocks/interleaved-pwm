@@ -3,6 +3,10 @@ build/
 build*/
 **/build/
 **/build-*/
+examples/simple/build-qemu/
+examples/simple/.vscode
+examples/ramp/build-qemu/
+examples/ramp/.vscode
 
 # ESP-IDF specific
 sdkconfig
