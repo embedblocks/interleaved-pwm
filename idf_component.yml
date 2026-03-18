@@ -1,5 +1,7 @@
-version: "0.1.4-ledc"
-description: Interleaved PWM using LEDC
-url: https://github.com/khiyamiftikhar/interleaved-pwm
+version: "0.1.7"
+description: "ESP-IDF LEDC-based interleaved PWM generator with phase shift support"
+url: "https://github.com/khiyamiftikhar/interleaved-pwm"
+license: "MIT"
+
 dependencies:
-  idf: ">=5.5"
+  idf: ">=5.0"
