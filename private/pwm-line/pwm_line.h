@@ -14,6 +14,7 @@ typedef enum {
 
 typedef struct {
     uint32_t time_period;   // Time Period of wave in microseconds
+    uint8_t timer_resolution;
     uint32_t pulse_width;   // Corresponds to duty cycle, in microseconds
     uint16_t phase;         //Degrees e.g 90, 180
     uint32_t dead_time;     //in microseconds Before this pulse, added to phase, so an addon on phase
@@ -36,6 +37,8 @@ typedef struct pwm_line{
 
 
 int pwmCreate(pwm_line_t* self,pwm_config_t*  config);
+int pwmGetMaxChannels();
+int pwmGetMaxTimerReolution();
 
 
 #endif

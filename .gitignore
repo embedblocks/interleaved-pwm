@@ -1,2 +1,8 @@
-/build
+build/
+build*/
 test/build
+managed_components
+.vscode
+.devcontainer
+sdkconfig
+sdkconfig.old
