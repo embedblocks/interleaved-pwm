@@ -8,3 +8,5 @@ dependencies:
 
 files:
    use_gitignore: true
+   exclude:
+      - ".git/**"
