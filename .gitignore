@@ -1,8 +1,29 @@
+# Build directories (all levels)
 build/
 build*/
-test/build
-managed_components
-.vscode
-.devcontainer
+**/build/
+**/build-*/
+examples/simple/build-qemu/
+examples/simple/.vscode
+examples/ramp/build-qemu/
+examples/ramp/.vscode
+
+# ESP-IDF specific
 sdkconfig
 sdkconfig.old
+managed_components/
+
+# IDE / misc
+.vscode/
+.devcontainer/
+
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Binary outputs
+*.elf
+*.bin
+*.map
+*.o
