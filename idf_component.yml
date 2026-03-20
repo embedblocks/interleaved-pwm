@@ -1,4 +1,4 @@
-version: "0.1.15"
+version: "0.1.16"
 description: "ESP-IDF LEDC-based interleaved PWM generator with phase shift support"
 url: "https://github.com/embedblocks/interleaved-pwm"
 license: "MIT"
@@ -9,5 +9,5 @@ dependencies:
 files:
    use_gitignore: true
    exclude:
-      - ".git/**"
-      - "docs/**"
+      - ".git/**/*"
+      - "docs/**/*"
