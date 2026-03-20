@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [0.1.16] - 2026-03-20
+## [0.1.17] - 2026-03-20
 
 ### Fixed
 - dist folder added to exclude in idf_component.yml
