@@ -10,4 +10,4 @@ files:
    use_gitignore: true
    exclude:
       - ".git/**"
-      - docs/**
+      - "docs/**"
