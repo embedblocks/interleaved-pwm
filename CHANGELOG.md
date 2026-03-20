@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.1.15] - 2026-03-20
+
+### Fixed
+- docs folder added to exclude in idf_component.yml
+
+---
+
 ## [0.1.13] - 2026-03-18
 
 ### Changed
