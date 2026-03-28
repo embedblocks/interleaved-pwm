@@ -146,7 +146,7 @@ static void pwmStart(pwm_line_interface_t* self){
 
     ledc_set_duty_with_hpoint(LEDC_MODE,pwm_line->channel_number,pwm_line->duty,pwm_line->hpoint);
     ledc_update_duty(LEDC_MODE, pwm_line->channel_number);
-    uint32_t delay_ms = (pwm_line->time_period * 6) / 1000;
+    
     //ESP_LOGI(TAG,"delay %lu",delay_ms);
 }
 
@@ -231,7 +231,7 @@ int pwmCreate(pwm_line_t* self,pwm_config_t*  config){
     self->gpio_number=config->gpio;
     self->hpoint=lag;
     self->duty=duty_ticks;
-    self->time_period=time_period;
+    
     self->interface.pwmStart=pwmStart;
     self->interface.pwmStop=pwmStop;
     self->interface.pwmDestroy=pwmDestroy;
