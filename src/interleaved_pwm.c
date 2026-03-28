@@ -154,6 +154,10 @@ static int stop(interleaved_pwm_interface_t* self){
     uint8_t total_lines=prb->total_lines;
 
     for(uint8_t i=0;i<total_lines;i++){
+        lines[i].interface.pwmDisconnect(&lines[i].interface);
+    }
+
+    for(uint8_t i=0;i<total_lines;i++){
         lines[i].interface.pwmStop(&lines[i].interface);
     }
    

@@ -112,7 +112,7 @@ static void pwmStop(pwm_line_interface_t* self){
     pwm_line_t* pwm_line=container_of(self,pwm_line_t,interface);
     ledc_stop(LEDC_MODE,pwm_line->channel_number,pwm_line->idle_state);
     gpio_set_level(pwm_line->gpio_number, 0);
-    pwm_detach_gpio(pwm_line->gpio_number);
+    //pwm_detach_gpio(pwm_line->gpio_number);
 
 }
 
@@ -121,7 +121,11 @@ static void pwmStop(pwm_line_interface_t* self){
 /// @param self 
 static void pwmDisconnect(pwm_line_interface_t* self){
     pwm_line_t* pwm_line=container_of(self,pwm_line_t,interface);
+    gpio_set_direction(pwm_line->gpio_number, GPIO_MODE_OUTPUT);
+    gpio_set_level(pwm_line->gpio_number, pwm_line->idle_state);
     pwm_detach_gpio(pwm_line->gpio_number);
+     /* Drive idle level immediately — no waiting for cycle to finish */
+
 }
 
 
@@ -242,12 +246,13 @@ int pwmCreate(pwm_line_t* self,pwm_config_t*  config){
     self->interface.pwmDisconnect=pwmDisconnect;
     self->idle_state=config->idle_state;
 
+    pwm_detach_gpio(self->gpio_number);
     pwmStop(&self->interface);
 
     gpio_set_direction(self->gpio_number, GPIO_MODE_OUTPUT);
     gpio_set_level(self->gpio_number, 0);
     
-    pwm_detach_gpio(self->gpio_number);
+    
     //ESP_LOGI(TAG,"returning from pwm_line");
 
     return 0;
