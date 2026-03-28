@@ -1,10 +1,14 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "driver/ledc.h"
 #include "esp_log.h"
 #include "esp_err.h"
 #include "pwm_line.h"
+#include "esp_rom_gpio.h"
+#include "soc/gpio_sig_map.h"
 
 
 
@@ -84,22 +88,66 @@ static int pwmLagTicksCalculate(uint16_t phase,uint32_t dead_time,uint32_t time_
 
 }
 
+/* Detach — GPIO goes idle, LEDC channel keeps running internally */
+static void pwm_detach_gpio(uint8_t gpio_num)
+{
+    gpio_reset_pin(gpio_num);
+}
 
+/* Attach — connects GPIO to the LEDC channel output signal */
+static void pwm_attach_gpio(uint8_t gpio_num, ledc_channel_t channel)
+{
+    /* LEDC_LS_SIG_OUT0_IDX + channel gives the signal index for each channel */
+    uint32_t signal_idx = LEDC_LS_SIG_OUT0_IDX + channel;
+
+    gpio_set_direction(gpio_num, GPIO_MODE_OUTPUT);
+    esp_rom_gpio_connect_out_signal(gpio_num, signal_idx, false, false);
+}
+
+
+/// @brief Stop and detach gpio
+/// @param self 
 static void pwmStop(pwm_line_interface_t* self){
 
     pwm_line_t* pwm_line=container_of(self,pwm_line_t,interface);
-
     ledc_stop(LEDC_MODE,pwm_line->channel_number,1);
+    pwm_detach_gpio(pwm_line->gpio_number);
 
 }
 
 
+/// @brief Detach gpio from pwm channel
+/// @param self 
+static void pwmDisconnect(pwm_line_interface_t* self){
+    pwm_line_t* pwm_line=container_of(self,pwm_line_t,interface);
+    pwm_detach_gpio(pwm_line->gpio_number);
+}
+
+
+/// @brief Attach gpio to pwm channel
+/// @param self 
+static void pwmConnect(pwm_line_interface_t* self){
+    
+    pwm_line_t* pwm_line=container_of(self,pwm_line_t,interface);
+    pwm_attach_gpio(pwm_line->gpio_number, pwm_line->channel_number);
+    
+}
+
+
+/// @brief Start with the set duty cycle but not attach.
+////    So if already attached no problem, otherwise attach it
+/// @param self 
 static void pwmStart(pwm_line_interface_t* self){
 
     pwm_line_t* pwm_line=container_of(self,pwm_line_t,interface);
 
+    if(pwm_line->hpoint==0)
+        ledc_timer_rst(LEDC_MODE, LEDC_TIMER);//ledc_timer_res
+
     ledc_set_duty_with_hpoint(LEDC_MODE,pwm_line->channel_number,pwm_line->duty,pwm_line->hpoint);
     ledc_update_duty(LEDC_MODE, pwm_line->channel_number);
+    uint32_t delay_ms = (pwm_line->time_period * 6) / 1000;
+    //ESP_LOGI(TAG,"delay %lu",delay_ms);
 }
 
 
@@ -141,6 +189,8 @@ int pwmCreate(pwm_line_t* self,pwm_config_t*  config){
     uint32_t time_period=config->time_period;
     uint32_t dead_time = config->dead_time;
 
+
+
     uint32_t frequency=1000000/time_period;     //1M/(time period in microseconds)
 
     if(timer_init_done==false){
@@ -181,11 +231,15 @@ int pwmCreate(pwm_line_t* self,pwm_config_t*  config){
     self->gpio_number=config->gpio;
     self->hpoint=lag;
     self->duty=duty_ticks;
+    self->time_period=time_period;
     self->interface.pwmStart=pwmStart;
     self->interface.pwmStop=pwmStop;
     self->interface.pwmDestroy=pwmDestroy;
     self->interface.pwmChangeWidth=pwmChangeWidth;
+    self->interface.pwmConnect=pwmConnect;
+    self->interface.pwmDisconnect=pwmDisconnect;
 
+    pwm_detach_gpio(self->gpio_number);
     //ESP_LOGI(TAG,"returning from pwm_line");
 
     return 0;
