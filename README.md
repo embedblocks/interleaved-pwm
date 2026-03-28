@@ -23,12 +23,12 @@ Instead of switching all channels simultaneously, this component distributes swi
 
 ## Using ESP-IDF Component Manager (Recommended)
 ```bash
-idf.py add-dependency "embedblocks/interleaved_pwm^0..1.17"
+idf.py add-dependency "embedblocks/interleaved_pwm^0.2.0"
 ```
 Or in your project's `idf_component.yml`:
 ```yaml
 dependencies:
-  embedblocks/interleaved_pwm: "^0..1.17"
+  embedblocks/interleaved_pwm: "^0.2.0"
 ```
 
 ---
@@ -132,9 +132,9 @@ PWM_DESTROY(&pwm);
 
 # Limitations
 
-![Start Problem](https://raw.githubusercontent.com/embedblocks/interleaved-pwm/v0.1.13/docs/1st-cycle.png)
+![Stop Problem](https://raw.githubusercontent.com/embedblocks/interleaved-pwm/v0.2.0/docs/1st-cycle-fixed.png)
 
-- All channels may not be correct on 1-2 cycle after start because of LEDC limitation
+- The stop is delayed.
 - Single instance per application in the current release
 - Timer 0 is always used — not configurable
 - 13-bit resolution cap (sufficient for all supported chips)
