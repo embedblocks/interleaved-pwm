@@ -91,7 +91,7 @@ static int pwmLagTicksCalculate(uint16_t phase,uint32_t dead_time,uint32_t time_
 /* Detach — GPIO goes idle, LEDC channel keeps running internally */
 static void pwm_detach_gpio(uint8_t gpio_num)
 {
-    gpio_reset_pin(gpio_num);
+    esp_rom_gpio_connect_out_signal(gpio_num, SIG_GPIO_OUT_IDX, false, false);
 }
 
 /* Attach — connects GPIO to the LEDC channel output signal */
@@ -110,7 +110,8 @@ static void pwm_attach_gpio(uint8_t gpio_num, ledc_channel_t channel)
 static void pwmStop(pwm_line_interface_t* self){
 
     pwm_line_t* pwm_line=container_of(self,pwm_line_t,interface);
-    ledc_stop(LEDC_MODE,pwm_line->channel_number,1);
+    ledc_stop(LEDC_MODE,pwm_line->channel_number,pwm_line->idle_state);
+    gpio_set_level(pwm_line->gpio_number, 0);
     pwm_detach_gpio(pwm_line->gpio_number);
 
 }
@@ -129,6 +130,7 @@ static void pwmDisconnect(pwm_line_interface_t* self){
 static void pwmConnect(pwm_line_interface_t* self){
     
     pwm_line_t* pwm_line=container_of(self,pwm_line_t,interface);
+    
     pwm_attach_gpio(pwm_line->gpio_number, pwm_line->channel_number);
     
 }
@@ -238,7 +240,13 @@ int pwmCreate(pwm_line_t* self,pwm_config_t*  config){
     self->interface.pwmChangeWidth=pwmChangeWidth;
     self->interface.pwmConnect=pwmConnect;
     self->interface.pwmDisconnect=pwmDisconnect;
+    self->idle_state=config->idle_state;
 
+    pwmStop(&self->interface);
+
+    gpio_set_direction(self->gpio_number, GPIO_MODE_OUTPUT);
+    gpio_set_level(self->gpio_number, 0);
+    
     pwm_detach_gpio(self->gpio_number);
     //ESP_LOGI(TAG,"returning from pwm_line");
 

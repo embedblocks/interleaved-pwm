@@ -69,7 +69,8 @@ static void create_default_interleaved_pwm(void)
         .pulse_widths = pulse_widths,
         .total_gpio  = 2,
         .dead_time   = 1000,
-        .time_period = 10000
+        .time_period = 10000,
+        .idle_state = INTERLEAVED_PWM_IDLE_STATE_LOW
     };
 
     esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);
@@ -94,7 +95,8 @@ static void create_4ch_interleaved_pwm(void)
         .pulse_widths = pulse_widths,
         .total_gpio  = 4,
         .dead_time   = 1000,
-        .time_period = 20000
+        .time_period = 20000,
+        .idle_state= INTERLEAVED_PWM_IDLE_STATE_LOW
     };
 
     esp_err_t ret=interleavedPWMCreate(&config,&interleaved_pwm);

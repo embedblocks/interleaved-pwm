@@ -388,6 +388,10 @@ esp_err_t interleavedPWMCreate(
         line_config.phase           = current_phase;
         line_config.time_period     = time_period;
         line_config.timer_resolution= timer_resolution;
+        line_config.idle_state =
+        (config->idle_state == INTERLEAVED_PWM_IDLE_STATE_LOW)
+            ? PWM_LINE_IDLE_STATE_LOW
+            : PWM_LINE_IDLE_STATE_HIGH;
 
         esp_err_t err = pwmCreate(&pwm_line[i], &line_config);
         if (err != ESP_OK) {

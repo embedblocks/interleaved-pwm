@@ -126,6 +126,12 @@
 is given in percentage instead of microseconds. So values in accepted in format which are convinient
 to the enduser. And it is the job of the class to calculate/convert the values.
 */
+
+typedef enum{
+    INTERLEAVED_PWM_IDLE_STATE_LOW=0,
+    INTERLEAVED_PWM_IDLE_STATE_HIGH,
+}interleaved_pwm_idle_state;
+
 typedef struct{
 
     uint8_t* gpio_no;
@@ -133,6 +139,7 @@ typedef struct{
     uint8_t total_gpio;
     uint32_t time_period;           //in microseconds
     uint32_t dead_time;             //microseconds. Dead Time between each pulse. The phase is determined by this
+    interleaved_pwm_idle_state idle_state;
 }interleaved_pwm_config_t;
 
 

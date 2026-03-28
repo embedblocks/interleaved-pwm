@@ -68,6 +68,7 @@ static esp_err_t converter_init(interleaved_pwm_interface_t **pwm,
         .total_gpio   = NUM_CHANNELS,
         .dead_time    = DEAD_TIME_US,
         .time_period  = TIME_PERIOD_US
+        .idle_state = INTERLEAVED_PWM_IDLE_STATE_LOW
     };
 
     esp_err_t ret = interleavedPWMCreate(&config,pwm);

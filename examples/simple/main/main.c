@@ -115,7 +115,8 @@ void app_main(void)
         .pulse_widths = invalid_widths,
         .total_gpio   = 4,
         .dead_time    = 1000,
-        .time_period  = 20000
+        .time_period  = 20000,
+        .idle_state = INTERLEAVED_PWM_IDLE_STATE_LOW
     };
 
     interleaved_pwm_interface_t* pwm;
@@ -151,7 +152,8 @@ void app_main(void)
         .pulse_widths = valid_widths,
         .total_gpio   = 4,
         .dead_time    = 1000,
-        .time_period  = 20000
+        .time_period  = 20000,
+        .idle_state = INTERLEAVED_PWM_IDLE_STATE_LOW
     };
 
     ret = interleavedPWMCreate(&valid_config,&pwm);
