@@ -4,6 +4,8 @@ channel number 0 to total channel required. Actually a single channel can be ass
 multiple gpio in esp32, so all those gpio will have same pwm signal.
 */
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_err.h"
 #include "pwm_line.h"
@@ -126,6 +128,14 @@ static int start(interleaved_pwm_interface_t* self){
     for(int8_t i=(total_lines-1);i>=0;i--){
         lines[i].interface.pwmStart(&lines[i].interface);
     }
+    
+    uint32_t delay_ms = (prb->time_period * 6) / 1000;
+    vTaskDelay(pdMS_TO_TICKS(delay_ms));
+
+    for(int8_t i=(total_lines-1);i>=0;i--){
+        lines[i].interface.pwmConnect(&lines[i].interface);
+    }
+    
 
     return 0;
 }
@@ -408,6 +418,7 @@ esp_err_t interleavedPWMCreate(
     instance_created = true;
 
     *out_if = &interleaved_pwm->interface;
+    
 
     ESP_LOGI(TAG, "interleaved PWM created");
 
