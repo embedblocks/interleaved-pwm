@@ -6,10 +6,11 @@
 #include "pwm_line_interface.h"
 
 
-typedef enum {
-    RUNNING,
-    IDLE
-}pwm_line_state_t;
+typedef enum{
+    PWM_LINE_IDLE_STATE_LOW=0,
+    PWM_LINE_IDLE_STATE_HIGH,
+}pwm_line_idle_state;
+
 
 
 typedef struct {
@@ -20,6 +21,7 @@ typedef struct {
     uint32_t dead_time;     //in microseconds Before this pulse, added to phase, so an addon on phase
     uint8_t gpio;           // GPIO pin number
     uint8_t channel_number; //In the group 1st , 2nd , third etc. seems useless
+    pwm_line_idle_state idle_state;
     void* context;      //For any data structure created by the ESPIDF driver
 } pwm_config_t;
 
@@ -31,6 +33,7 @@ typedef struct pwm_line{
     uint8_t gpio_number;
     int duty;                   //Private class data, required by driver in duty ticks (counter value)
     int hpoint;
+    pwm_line_idle_state idle_state;
     pwm_line_interface_t interface;
 
 }pwm_line_t;

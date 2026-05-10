@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+
+---
+## [0.2.1] - 2026-03-28
+
+### Fixed
+    Readme illustration of stop anomly correctly explained
+
+
+---
+## [0.2.0] - 2026-03-28
+
+### Fixed
+- The start cycles anamoly fixed
+### Updated
+- Idle level control added
 ---
 
 ## [0.1.17] - 2026-03-20

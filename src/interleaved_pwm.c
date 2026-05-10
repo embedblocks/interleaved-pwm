@@ -4,6 +4,8 @@ channel number 0 to total channel required. Actually a single channel can be ass
 multiple gpio in esp32, so all those gpio will have same pwm signal.
 */
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_err.h"
 #include "pwm_line.h"
@@ -126,6 +128,14 @@ static int start(interleaved_pwm_interface_t* self){
     for(int8_t i=(total_lines-1);i>=0;i--){
         lines[i].interface.pwmStart(&lines[i].interface);
     }
+    
+    uint32_t delay_ms = (prb->time_period * 6) / 1000;
+    vTaskDelay(pdMS_TO_TICKS(delay_ms));
+
+    for(int8_t i=(total_lines-1);i>=0;i--){
+        lines[i].interface.pwmConnect(&lines[i].interface);
+    }
+    
 
     return 0;
 }
@@ -142,6 +152,10 @@ static int stop(interleaved_pwm_interface_t* self){
     if(lines==NULL)
         return ESP_FAIL;
     uint8_t total_lines=prb->total_lines;
+
+    for(uint8_t i=0;i<total_lines;i++){
+        lines[i].interface.pwmDisconnect(&lines[i].interface);
+    }
 
     for(uint8_t i=0;i<total_lines;i++){
         lines[i].interface.pwmStop(&lines[i].interface);
@@ -378,6 +392,10 @@ esp_err_t interleavedPWMCreate(
         line_config.phase           = current_phase;
         line_config.time_period     = time_period;
         line_config.timer_resolution= timer_resolution;
+        line_config.idle_state =
+        (config->idle_state == INTERLEAVED_PWM_IDLE_STATE_LOW)
+            ? PWM_LINE_IDLE_STATE_LOW
+            : PWM_LINE_IDLE_STATE_HIGH;
 
         esp_err_t err = pwmCreate(&pwm_line[i], &line_config);
         if (err != ESP_OK) {
@@ -408,6 +426,7 @@ esp_err_t interleavedPWMCreate(
     instance_created = true;
 
     *out_if = &interleaved_pwm->interface;
+    
 
     ESP_LOGI(TAG, "interleaved PWM created");
 

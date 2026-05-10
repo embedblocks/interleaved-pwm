@@ -7,7 +7,8 @@ examples/simple/build-qemu/
 examples/simple/.vscode
 examples/ramp/build-qemu/
 examples/ramp/.vscode
-
+dependencies.lock
+dist/
 # ESP-IDF specific
 sdkconfig
 sdkconfig.old
